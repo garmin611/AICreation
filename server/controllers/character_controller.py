@@ -1,0 +1,93 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
+import json
+import os
+import logging
+from server.services.kg_service import KGService
+from server.utils.response import make_response
+
+router = APIRouter(prefix='/character')
+kg_service = KGService()
+
+@router.get('/list')
+async def get_characters(project_name: str = Query(..., description="项目名称")):
+    """获取项目中的所有角色信息"""
+    try:
+        if not project_name:
+            return make_response(status='error', msg='Missing project_name parameter')
+            
+        # 获取实体列表
+        characters = kg_service.inquire_entity_list(project_name)
+        characters = json.loads(characters) if isinstance(characters, str) else characters
+        
+        # 获取锁定的实体列表
+        locked_entities = kg_service.get_locked_entities(project_name)
+        
+        return make_response(data={
+            'characters': characters,
+            'locked_entities': locked_entities
+        })
+    except Exception as e:
+        return make_response(status='error', msg=str(e))
+
+@router.post('/update')
+async def update_character(request: Request):
+    """更新角色信息"""
+    try:
+        data = await request.json()
+        project_name = data.get('project_name')
+        name = data.get('name')
+        attributes = data.get('attributes', {})
+        
+        if not project_name:
+            return make_response(status='error', msg='Missing project_name parameter')
+            
+        # 使用 kg_service 更新实体属性，并自动保存
+        result = kg_service.modify_entity(project_name, name, attributes, save_kg=True)
+        return make_response(data=result)
+    except Exception as e:
+        return make_response(status='error', msg=str(e))
+
+@router.post('/toggle_lock')
+async def toggle_lock(request: Request):
+    """锁定/解锁实体提示词"""
+    try:
+        data = await request.json()
+        project_name = data.get('project_name')
+        entity_name = data.get('entity_name')
+        
+        if not project_name:
+            return make_response(status='error', msg='Missing project_name parameter')
+            
+        # 使用 kg_service 切换实体锁定状态，并自动保存
+        is_locked = kg_service.toggle_entity_lock(project_name, entity_name, save_kg=True)
+        return make_response(data={'is_locked': is_locked})
+    except Exception as e:
+        return make_response(status='error', msg=str(e))
+
+@router.delete('/{name}')
+async def delete_character(name: str, project_name: str = Query(..., description="项目名称")):
+    """
+    删除角色实体
+    
+    参数:
+        name (str): 实体名称
+        
+    返回:
+        dict: 响应结果
+    """
+    try:
+        if not project_name:
+            return make_response(status='error', msg='项目不存在')
+            
+        # 删除实体，并自动保存
+        result = kg_service.delete_entity(project_name, name, save_kg=True)
+        
+        # 检查删除结果
+        if '成功' in result:
+            return make_response()
+        else:
+            return make_response(status='error', msg=result)
+            
+    except Exception as e:
+        logging.error(f"删除角色时出错: {str(e)}")
+        return make_response(status='error', msg=str(e))
