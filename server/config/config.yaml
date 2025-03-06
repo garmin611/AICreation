@@ -3,7 +3,7 @@ comfyui:
 default_workflow:
   name: comfyui.json
 llm:
-  api_key: sk-jbmoetlepdnlssacqpvunssgsxyduuoihgymxvkfhwohtauc
+  api_key: your-key
   api_url: https://api.siliconflow.cn/v1
   model_name: deepseek-ai/DeepSeek-V2.5
   proxies: null
