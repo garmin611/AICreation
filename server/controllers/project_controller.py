@@ -199,7 +199,7 @@ async def update_project(request: Request):
     except Exception as e:
         return make_response(status='error', msg=f'更新项目时发生错误：{str(e)}')
 
-@router.delete('/{project_name}')
+@router.delete('/delete/{project_name}')
 async def delete_project(project_name: str):
     """删除项目"""
     try:

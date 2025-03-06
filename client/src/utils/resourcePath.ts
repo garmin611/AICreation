@@ -11,10 +11,24 @@ import config from '@/config'
 export const getResourcePath = (
   projectName: string,
   chapterName: string,
-  spanId: number,
-  type: 'image' | 'audio' = 'image'
+  spanId?: number,
+  type: 'image' | 'audio' |'video'= 'image'
 ): string => {
   const timestamp = Date.now()
-  const endpoint = type === 'image' ? 'media/get_image' : 'media/get_audio'
-  return `${config.baseApi}${endpoint}?project_name=${projectName}&chapter_name=${chapterName}&span_id=${spanId}&_t=${timestamp}`
+  let endpoint=''
+  switch (type) {
+    case 'image':
+      endpoint = 'media/get_image'
+      break;
+    case 'audio':
+      endpoint = 'media/get_audio'
+      break;
+    case 'video':
+      endpoint='video/get_video'
+      break;
+  }
+  if(type!=='video')
+    return `${config.baseApi}${endpoint}?project_name=${projectName}&chapter_name=${chapterName}&span_id=${spanId}&_t=${timestamp}`
+  else
+    return `${config.baseApi}${endpoint}?project_name=${projectName}&chapter_name=${chapterName}&_t=${timestamp}`
 }

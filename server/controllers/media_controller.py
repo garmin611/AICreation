@@ -32,7 +32,12 @@ async def generate_images(request: Request):
         # 获取工作流和参数
         workflow = data.get('workflow', config.get('default_workflow', {}).get('name', 'default_workflow.json'))
         params = data.get('params', {})
-        
+        width = image_settings.get('width', 512)
+        height = image_settings.get('height', 512)
+        params['width']=width
+        params['height']=height
+
+
         # 构建输出路径数组
         output_dirs = []
         for prompt_data in prompts:

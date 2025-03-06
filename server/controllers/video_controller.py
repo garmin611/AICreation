@@ -1,38 +1,46 @@
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
-from typing import Optional
+from typing import Optional, Tuple
 import os
 from pathlib import Path
 from pydantic import BaseModel
 from concurrent.futures import ThreadPoolExecutor
+from server.config.config import load_config
 from server.services.video_service import VideoService
 from server.utils.response import make_response, APIException
+import logging
 
-router = APIRouter(tags=["Video API"])
+router = APIRouter(prefix='/video')
+logger = logging.getLogger(__name__)
 
 class VideoSettings(BaseModel):
+    project_name:Optional[str] = None
+    chapter_name:Optional[str] = None
     """视频效果配置模型"""
     zoom_factor: Optional[float] = None
     pan_intensity: Optional[int] = None
     font_name: Optional[str] = None
     font_size: Optional[int] = None
-    resolution: Optional[tuple[int, int]] = None
+    resolution: Optional[Tuple[int, int]] = None
 
-@router.post("/generate-video")
+@router.post("/generate_video")
 async def generate_video(
-    project_name: str,
-    chapter_name: str,
     settings: Optional[VideoSettings] = None
 ):
     """生成视频接口"""
     try:
         # 加载配置获取项目路径
         config = load_config()
-        base_path = config['projects_path']
-        
+        base_path = config.get('projects_path', 'projects/')
+   
+    
+    
         # 构建章节路径
-        chapter_path = Path(base_path) / project_name / chapter_name
-        if not chapter_path.exists():
+        chapter_path=os.path.join(base_path,settings.project_name,settings.chapter_name)
+        
+
+        logger.info(chapter_path)
+        if not os.path.exists(chapter_path) :
             raise APIException(
                 detail="Chapter not found",
                 status="error"
@@ -64,7 +72,7 @@ async def generate_video(
             detail=str(e)
         )
 
-@router.get("/get-video")
+@router.get("/get_video")
 async def get_video(project_name: str, chapter_name: str):
     """获取视频文件接口"""
     try:

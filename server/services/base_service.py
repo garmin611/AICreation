@@ -1,5 +1,5 @@
 from abc import ABC
-from config.config import load_config
+from server.config.config import load_config
 import logging
 
 # 配置日志输出

@@ -4,11 +4,11 @@ import time
 import logging
 import ssl
 import asyncio
-from typing import List, Dict, Optional, Any, Tuple
+from typing import AsyncGenerator, List, Dict, Optional, Any, Tuple
 from openai import OpenAI, AsyncOpenAI
 import httpx
 from httpx import Timeout
-from services.kg_service import KGService
+from server.services.kg_service import KGService
 from .base_service import SingletonService
 import re
 
@@ -173,13 +173,40 @@ class LLMService(SingletonService):
                 kwargs["response_format"] = {"type": "json_object"}
             if tools:
                 kwargs["tools"] = tools
-                
+            
             response = await self.async_client.chat.completions.create(**kwargs)
+            
             return response
             
         except Exception as e:
             logging.error(f"调用LLM API时出错: {str(e)}")
             raise
+
+    async def _make_async_api_request_stream(self, messages: List[dict], tools: Optional[List[dict]] = None, force_json: bool = False) -> AsyncGenerator[str, None]:
+        """异步调用LLM API，返回流式响应"""
+        try:
+            
+            kwargs = {
+                "model": self.model_name,
+                "messages": messages,
+                "temperature": 0.7,
+                'stream': True,
+                'timeout': 90  # 设置90秒超时
+            }
+            if force_json:
+                kwargs["response_format"] = {"type": "json_object"}
+            if tools:
+                kwargs["tools"] = tools
+            
+            response = await self.async_client.chat.completions.create(**kwargs)
+            async for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+            
+        except Exception as e:
+            logging.error(f"调用LLM API时出错: {str(e)}")
+            raise
+    
 
     def _handle_function_call(self, response: dict, project_name: str) -> Tuple[str, List[dict]]:
         """
@@ -370,23 +397,23 @@ class LLMService(SingletonService):
             logging.error(f"处理文本块时出错: {str(e)}")
             return [{"content": text, "scene": "", "error": str(e)}]
 
-    def split_text_and_generate_prompts(self, project_name: str, text: str) -> List[dict]:
+    async def split_text_and_generate_prompts(self, project_name: str, text: str) -> List[dict]:
         """
         分割文本并生成描述词
-        
+
         Args:
             project_name: 项目名称
             text: 要分割的文本
-            
+
         Returns:
             List[dict]: 包含文本段落和对应描述词的列表
         """
         # 从配置文件读取 window_size
         window_size = self.config['llm'].get('window_size', -1)
-        
+
         # 初始化 text_chunks 列表
         text_chunks = []
-        
+
         # 如果 window_size <= 0，直接处理整个文本
         if window_size <= 0:
             # 不使用滑动窗口，整个文本一次性处理
@@ -397,37 +424,37 @@ class LLMService(SingletonService):
             paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
             OVERLAP_PARAGRAPHS = 1  # 与前后块重叠的段落数
             logging.info(f"使用滑动窗口处理模式，窗口大小: {window_size}，重叠段落数: {OVERLAP_PARAGRAPHS}")
-            
+
             i = 0
             while i < len(paragraphs):
                 # 获取当前窗口的段落
                 window_end = min(i + window_size, len(paragraphs))
                 current_paragraphs = paragraphs[i:window_end]
-                
+
                 # 如果不是第一个块，添加前文上下文
                 if i > 0:
                     context_start = max(0, i - OVERLAP_PARAGRAPHS)
                     current_paragraphs = paragraphs[context_start:i] + current_paragraphs
-                
+
                 # 如果不是最后一个块，添加后文上下文
                 if window_end < len(paragraphs):
                     context_end = min(len(paragraphs), window_end + OVERLAP_PARAGRAPHS)
                     current_paragraphs = current_paragraphs + paragraphs[window_end:context_end]
-                
+
                 # 合并段落
                 chunk_text = "\n".join(current_paragraphs)
                 text_chunks.append(chunk_text)
-                
+
                 # 移动窗口，但不包括重叠部分
                 i += window_size - OVERLAP_PARAGRAPHS
-            
+
         logging.info(f"文本已分割为 {len(text_chunks)} 个块")
 
         # 使用异步并行处理所有文本块
         async def process_all_chunks():
             tasks = [self._process_text_chunk_async(chunk) for chunk in text_chunks]
             results = await asyncio.gather(*tasks)
-            
+
             # 如果使用了滑动窗口，需要去重
             if window_size > 0:
                 seen_scenes = set()
@@ -442,17 +469,15 @@ class LLMService(SingletonService):
             else:
                 # 不使用滑动窗口时，直接返回第一个（也是唯一的）结果
                 return results[0]  # results[0] 已经是一个列表了，因为 _process_text_chunk_async 返回列表
-            
-        # 运行异步任务
+
+        # 调用异步函数并等待结果
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-        results = loop.run_until_complete(process_all_chunks())
-        logging.info(f"文本处理完成，生成了 {len(results)} 个场景")
-        return results
+            results = await process_all_chunks()
+            logging.info(f"文本处理完成，生成了 {len(results)} 个场景")
+            return results
+        except Exception as e:
+            logging.error(f"分割文本时发生错误：{str(e)}")
+            raise
 
     def get_chapter_content(self, project_name: str, chapter_name: str) -> str:
         """
@@ -476,35 +501,53 @@ class LLMService(SingletonService):
             logger.error(f"Error reading chapter content: {e}")
             return ''
 
-    def generate_text(self, prompt: str, project_name: str, last_content: str = '') -> str:
+    async def generate_text(self, prompt: str, project_name: str, last_content: str = '') -> AsyncGenerator[str, None]:
         """生成文本"""
         if not prompt:
             raise ValueError("提示词不能为空")
-            
-        # 加载并填充提示词模板
-        system_prompt = self._load_prompt('novel_writing.txt')
-        system_prompt = system_prompt.replace('{context}', last_content)
-        system_prompt = system_prompt.replace('{requirements}', prompt)
         
-        messages = [
-            {'role': 'system', 'content': system_prompt},
-            {'role': 'user', 'content': prompt}
-        ]
-        return self._process_llm_response(messages, project_name)
+        try:
+                
+            # 加载并填充提示词模板
+            system_prompt = self._load_prompt('novel_writing.txt')
+            system_prompt = system_prompt.replace('{context}', last_content)
+            system_prompt = system_prompt.replace('{requirements}', prompt)
+            
+            messages = [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': prompt}
+            ]
+            # 使用async for直接迭代异步生成器
+            async for text in self._make_async_api_request_stream(messages):
+                yield text
+        except asyncio.CancelledError:
+            logger.info("生成任务被取消")
+            raise
+        finally:
+            # 执行必要的资源清理
+            logger.info("生成器资源已释放")
 
-    def continue_story(self, original_story: str, project_name: str, last_content: str = '') -> str:
+    async def continue_story(self, original_story: str, project_name: str, last_content: str = '') -> AsyncGenerator[str, None]:
         """续写故事"""
+        
         if not original_story:
             raise ValueError("故事内容不能为空")
+
+        try:  
+            system_prompt = self._load_prompt('story_continuation.txt')
+            system_prompt = system_prompt.replace('{context}', last_content)
             
-        system_prompt = self._load_prompt('story_continuation.txt')
-        system_prompt = system_prompt.replace('{context}', last_content)
-        
-        messages = [
-            {'role': 'system', 'content': system_prompt},
-            {'role': 'user', 'content': original_story}
-        ]
-        return self._process_llm_response(messages, project_name)
+            messages = [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': original_story}
+            ]
+            async for text in self._make_async_api_request_stream(messages):
+                yield text
+        except asyncio.CancelledError:
+            logger.info("续写任务被取消")
+            raise
+        finally:
+            logger.info("续写生成器资源已释放")
 
     def extract_character(self, text: str, project_name: str) -> dict:
         """
@@ -656,7 +699,7 @@ class LLMService(SingletonService):
             logging.error(f'批量翻译提示词失败: {str(e)}')
             raise
 
-    def translate_prompt(self, project_name: str, prompts: List[str]) -> List[str]:
+    async def translate_prompt(self, project_name: str, prompts: List[str]) -> List[str]:
         """
         翻译提示词列表
         Args:
@@ -668,37 +711,30 @@ class LLMService(SingletonService):
         try:
             # 加载系统提示词
             system_prompt = self._load_prompt('prompt_translation.txt')
-            
+
             # 从知识图谱中获取所有实体信息
             entities_json = self.kg_service.inquire_entity_list(project_name)
             entities = json.loads(entities_json)
-            
+
             # 将提示词列表按每10个一组进行切分
             batch_size = 10
             batches = [prompts[i:i + batch_size] for i in range(0, len(prompts), batch_size)]
-            
-            # 创建事件循环
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
+
             # 并行处理每个批次
             tasks = []
             for batch in batches:
                 tasks.append(self._translate_prompt_batch(project_name, batch, system_prompt, entities))
-            
+
             # 执行所有任务
-            results = loop.run_until_complete(asyncio.gather(*tasks))
-            
-            # 关闭事件循环
-            loop.close()
-            
+            results = await asyncio.gather(*tasks)
+
             # 将所有批次的结果合并
             translated_prompts = []
             for batch_result in results:
                 translated_prompts.extend(batch_result)
-            
+
             return translated_prompts
-            
+
         except Exception as e:
             logging.error(f'翻译提示词失败: {str(e)}')
             raise

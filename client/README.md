@@ -25,7 +25,7 @@ client/                 # 前端项目根目录
 │   │   ├── chapter_api.ts # 章节相关 API
 │   │   ├── character_api.ts # 角色相关 API
 │   │   ├── media_api.ts # 媒体生成相关 API
-│   │   └── request.ts # 请求封装
+│   │   └── request.ts # 请求封装，支持普通请求（Axios）和流式请求（Fetch API）处理
 │   ├── components/    # 组件目录
 │   │   ├── Header.vue # 顶部导航组件
 │   │   └── ...       # 其他组件
@@ -93,6 +93,11 @@ client/                 # 前端项目根目录
 - 路由懒加载
 - 404 页面处理
 - 路由参数管理
+
+### 5. 流式请求处理
+
+- 在 `request.ts` 中实现了流式请求处理，使用 Fetch API 代替 Axios 处理流式响应。
+- `generateChapter` 方法现在支持流式响应，允许前端实时接收生成的章节内容。
 
 ## 四、页面组件说明
 
@@ -173,7 +178,8 @@ client/                 # 前端项目根目录
   - 创作/续写模式切换
   - 使用上一章节内容选项
   - 保存章节内容
-  - AI 辅助创作/续写功能
+  - AI 辅助创作/续写功能，支持实时流式输出
+  - 使用 ReadableStream 和 TextDecoder 处理流式响应
 
 - 布局优化
   - 合理的按钮布局：分割章节按钮在左侧，保存和创作按钮在右侧

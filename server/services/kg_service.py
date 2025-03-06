@@ -1,6 +1,6 @@
 import os
 import json
-from config.config import load_config
+from server.config.config import load_config
 from typing import Dict, List, Optional, Any, Tuple
 from collections import deque
 from .base_service import SingletonService

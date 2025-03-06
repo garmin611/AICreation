@@ -425,10 +425,7 @@ const progress = ref({
   taskId: '',
   errors: [] as string[]
 })
-const progressPercentage = computed(() => {
-  if (progress.value.total === 0) return 0
-  return Math.round((progress.value.current / progress.value.total) * 100)
-})
+
 
 // 批量操作方法
 const convertAllPrompts = async () => {
@@ -503,39 +500,48 @@ const checkGenerationProgress = async () => {
   try {
     const response = await mediaApi.getProgress(progress.value.taskId)
     const { status, current, total, errors } = response
+
+    if (current > progress.value.current) {//每完成一个，就更新一个
+      // 如果是音频生成任务，更新音频路径
+        if (generatingAllAudio.value) {
+         
+          generatingAudioScenes.value.forEach((sceneId) => {
+            const scene = sceneList.value.find(s => s.id === sceneId)
+            scene.audio=getResourcePath(projectName.value, chapterName.value, scene.id, 'audio')
+
+          })
+        }
+
+        if (generating.value) {//生成的图片任务，更新图片路径
+          generatingScenes.value.forEach((sceneId) => {
+            const scene = sceneList.value.find(s => s.id === sceneId)
+            scene.image=getResourcePath(projectName.value, chapterName.value, scene.id, 'image')
+
+          })
+        }
+    }
     
     progress.value.current = current
     progress.value.total = total
     progress.value.status = status
     progress.value.errors = errors || []
+
+    
     
     if (status === 'completed' || status === 'error' || status === 'cancelled' || status === 'not_found') {
       if (progressTimer) {
         clearInterval(progressTimer)
         progressTimer = null
       }
+
+      
       
       if (status === 'completed') {
         progress.value.current = progress.value.total
-        await new Promise(resolve => setTimeout(resolve, 500))
+        await new Promise(resolve => setTimeout(resolve, 300))
         
-        // 如果是音频生成任务，更新音频路径
-        if (generatingAllAudio.value) {
-          // 如果是生成所有音频
-          if (progress.value.total > 1) {
-            const scenes = sceneList.value.filter(scene => scene.span)
-            scenes.forEach(scene => {
-              scene.audio = getResourcePath(projectName.value, chapterName.value, scene.id, 'audio')
-            })
-          } else {
-            // 如果是生成单个音频
-            const sceneId = progress.value.taskId.split('_')[2] // 从任务ID中获取场景ID
-            const scene = sceneList.value.find(s => s.id === parseInt(sceneId))
-            if (scene) {
-              scene.audio = getResourcePath(projectName.value, chapterName.value, scene.id, 'audio')
-            }
-          }
-        }
+        
+        
       }
       
       if (generating.value) {
@@ -727,7 +733,7 @@ const generateAllImages = async () => {
     progressTimer = setInterval(checkGenerationProgress, 1000)
     
   } catch (error) {
-    console.error('Failed to generate all images:', error)
+
     ElMessage.error(t('common.operationFailed'))
     generating.value = false
     generatingScenes.value.clear()
@@ -762,7 +768,7 @@ const generateAllAudio = async () => {
         prompt: scene.span
       }))
     }
-    
+    scenes.forEach(scene => generatingAudioScenes.value.add(scene.id))
     const data = await mediaApi.generateAudio(params)
     progress.value.taskId = data.task_id
     progress.value.total = data.total

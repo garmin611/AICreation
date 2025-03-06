@@ -1,4 +1,4 @@
-import request from './request'
+import request, { streamRequest } from './request'
 
 interface GenerateChapterParams {
   project_name: string
@@ -45,13 +45,14 @@ export const chapterApi = {
   },
 
   // 生成章节内容
-  generateChapter(params: GenerateChapterParams) {
-    return request({
-      url: '/chapter/generate',
+ generateChapter(params: GenerateChapterParams& { signal?: AbortSignal }) {
+  return streamRequest({
+    url: '/chapter/generate',
       method: 'post',
-      data: params
-    })
-  },
+      data: params,
+      signal: params.signal
+  })
+},
 
   // 保存章节内容
   saveChapterContent(params: SaveChapterParams) {

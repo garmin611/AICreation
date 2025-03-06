@@ -35,12 +35,12 @@ class VideoService(SingletonService):
     def generate_video(self, chapter_path, video_settings=None):
         """生成视频主方法（支持多线程）"""
         settings = {**self.default_settings, **(video_settings or {})}
-        
+
         try:
             clips = []
             # 遍历排序后的子文件夹
             subdirs = sorted([
-                d for d in os.listdir(chapter_path) 
+                d for d in os.listdir(chapter_path)
                 if os.path.isdir(os.path.join(chapter_path, d))
             ], key=lambda x: int(x))  # 按数字顺序排序
 
@@ -52,67 +52,78 @@ class VideoService(SingletonService):
                 ]
                 clips = [future.result() for future in futures]
 
+
+            # 检查每个片段是否有效
+            for clip in clips:
+                if clip is None:
+                    raise ValueError("One of the video clips is None")
+                if not hasattr(clip, 'get_frame'):
+                    raise ValueError(f"Invalid clip object: {clip}")
+
             # 合并视频片段
             final_clip = concatenate_videoclips(clips, method="compose")
-            
+            if final_clip is None or not hasattr(final_clip, 'get_frame'):
+                raise ValueError("Failed to concatenate clips: final_clip is invalid")
+
+
+
             # 输出路径
             output_path = os.path.join(chapter_path, "video.mp4")
+
+            logger.info("准备输出")
             final_clip.write_videofile(
                 output_path,
-                codec='libx264',
-                audio_codec='aac',
                 fps=24,
-                threads=4,
-                preset='slow',
-                ffmpeg_params=['-crf', '20']
+                threads=4
             )
+            logger.info("输出完成")
             return output_path
         except Exception as e:
             logger.error(f"Video generation failed: {str(e)}")
+
             raise
 
     def _create_clip(self, subdir_path, settings):
-        """创建单个视频片段"""
-        # 加载资源文件
-        resources = {
-            'image': os.path.join(subdir_path, "image.png"),
-            'audio': os.path.join(subdir_path, "audio.mp3"),
-            'text': self._read_text(subdir_path)
-        }
+        audio_clip = None
+        try:
+            # 加载资源文件
+            resources = {
+                'image': os.path.join(subdir_path, "image.png"),
+                'audio': os.path.join(subdir_path, "audio.mp3")
+            }
 
-        # 验证文件存在
-        for typ, path in resources.items():
-            if typ == 'text': continue
-            if not os.path.exists(path):
-                raise FileNotFoundError(f"Missing {typ} file: {path}")
+            # 检查音频文件
+            if not os.path.exists(resources['audio']):
+                raise FileNotFoundError(f"音频文件不存在: {resources['audio']}")
+            if os.path.getsize(resources['audio']) == 0:
+                raise ValueError(f"音频文件为空: {resources['audio']}")
 
-        # 创建带效果的片段
-        audio_clip = AudioFileClip(resources['audio'])
-        duration = audio_clip.duration
-        audio_clip.close()
+            # 加载音频文件
+            audio_clip = AudioFileClip(resources['audio'])
+            if audio_clip.reader is None:
+                raise ValueError("音频文件加载失败：reader 为 None")
+            duration = audio_clip.duration
 
-        # 基础剪辑
-        img_clip = ImageClip(resources['image']).set_duration(duration)
-        img_clip = resize(img_clip, newsize=settings['resolution'])
+            # 加载图片文件
+            img_clip = ImageClip(resources['image']).set_duration(duration)
+            img_clip = resize(img_clip, newsize=settings['resolution'])
 
-        # 应用动态效果
-        final_clip = self._apply_effects(img_clip, duration, settings)
-        
-        # 添加字幕
-        txt_clip = TextClip(
-            resources['text'],
-            font=settings['font_name'],
-            fontsize=settings['font_size'],
-            color='white',
-            bg_color='rgba(0,0,0,0.3)',
-            size=(img_clip.w * 0.9, None)
-        ).set_position(('center', 'bottom')).set_duration(duration)
-        
-        # 合成最终片段
-        return CompositeVideoClip([final_clip, txt_clip]).set_audio(audio_clip)
+            # 应用动态效果
+            final_clip = self._apply_effects(img_clip, duration, settings)
+
+            # 合成最终片段
+            return CompositeVideoClip([final_clip]).set_audio(audio_clip)
+        except Exception as e:
+            if audio_clip is not None:
+                audio_clip.close()
+            logger.error(f"创建视频片段失败: {str(e)}")
+            raise
 
     def _apply_effects(self, clip, duration, settings):
         """应用动态效果"""
+        if clip is None:
+            raise ValueError("Input clip is None")
+
         # 缩放效果
         def zoom_effect(t):
             if t < duration/3:
@@ -122,10 +133,21 @@ class VideoService(SingletonService):
         # 平移效果
         def pan_effect(get_frame, t):
             img = get_frame(t)
+            if img is None:
+                # 如果 get_frame 返回 None，返回一个空帧或处理错误
+                return np.zeros((settings['resolution'][1], settings['resolution'][0], 3), dtype=np.uint8)
             offset = int(settings['pan_intensity'] * abs(np.sin(0.5*t)))
             return img[:, offset:offset+img.shape[1]-40]
         
-        return clip.resize(lambda t: zoom_effect(t)).fl(pan_effect)
+        # 确保返回有效的视频片段
+        try:
+            final_clip = clip.resize(lambda t: zoom_effect(t)).fl(pan_effect)
+            if final_clip is None:
+                raise ValueError("Failed to apply effects")
+            return final_clip
+        except Exception as e:
+            logger.error(f"Failed to apply effects: {str(e)}")
+            raise
 
     def _read_text(self, subdir_path):
         """读取字幕文件"""

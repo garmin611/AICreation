@@ -1,12 +1,14 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request
 import os
 from server.config.config import load_config
 import json
 from datetime import datetime
 from server.utils.response import make_response
-import shutil
+
 from server.services.llm_service import LLMService
 import logging
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix='/chapter')
 llm_service = LLMService()
@@ -67,14 +69,37 @@ async def generate_chapter(request: Request):
             last_content = llm_service.get_chapter_content(project_name, f'chapter{int(chapter_name[7:]) - 1}')
         else:
             last_content = ''
-            
-        # 根据模式选择生成或续写
-        if is_continuation:
-            generated_text = llm_service.continue_story(prompt, project_name, last_content)
-        else:
-            generated_text = llm_service.generate_text(prompt, project_name, last_content)
+        
+        # 创建一个生成器
+        async def event_stream():
+            try:
+                if is_continuation:
+                    generator = llm_service.continue_story(prompt, project_name, last_content)
+                else:
+                    generator = llm_service.generate_text(prompt, project_name, last_content)
 
-        return make_response(data=generated_text, msg='生成成功')
+                async for generated_text in generator:
+                    if await request.is_disconnected():
+                        break
+                    yield f"data: {generated_text}\n\n"
+            except asyncio.CancelledError:
+                # 处理客户端断开连接
+                print("客户端中断了连接")
+            finally:
+                # 执行必要的清理操作
+                if 'generator' in locals():
+                    await generator.aclose()
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream",
+                "X-Accel-Buffering": "no"
+            }
+        )
 
     except Exception as e:
         return make_response(status='error', msg=str(e))
@@ -124,7 +149,7 @@ async def split_text(request: Request):
             return make_response(status='error', msg=f'Content not found for chapter {chapter_name}')
         
         # 调用 llm_service 进行文本分割和描述词生成
-        spans_and_prompts = llm_service.split_text_and_generate_prompts(project_name, content)
+        spans_and_prompts =await llm_service.split_text_and_generate_prompts(project_name, content)
         
         # 检查是否有错误
         if spans_and_prompts and all('error' in span for span in spans_and_prompts):
@@ -271,7 +296,7 @@ async def translate_prompt(request: Request):
         if not isinstance(prompts, list):
             return make_response(status='error', msg='prompts 必须是一个列表')
             
-        translated_prompts = llm_service.translate_prompt(project_name, prompts)
+        translated_prompts =await llm_service.translate_prompt(project_name, prompts)
         return make_response(data=translated_prompts, msg='翻译提示词成功')
         
     except Exception as e:

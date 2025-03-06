@@ -101,6 +101,7 @@ export default {
     createMode: '创作模式',
     useLastChapter: '引用上一章',
     write: '生成',
+    stop: '中断',
     continuePlaceholder: '请输入需要续写的文本内容，然后点击生成按钮',
     createPlaceholder: '请输入创作要求，然后点击生成按钮',
     chapterCreated: '章节创建成功',

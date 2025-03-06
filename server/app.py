@@ -11,6 +11,7 @@ from server.controllers.chapter_controller import router as chapter_router
 from server.controllers.media_controller import router as media_router
 from server.controllers.admin_controller import router as admin_router
 from server.controllers.character_controller import router as character_router
+from server.controllers.video_controller import router as video_router
 
 app = FastAPI()
 
@@ -31,6 +32,7 @@ app.include_router(chapter_router)
 app.include_router(media_router)
 app.include_router(admin_router)
 app.include_router(character_router)
+app.include_router(video_router)
 
 @app.exception_handler(Exception)
 async def handle_error(request, exc):

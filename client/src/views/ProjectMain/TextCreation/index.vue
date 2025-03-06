@@ -43,6 +43,7 @@
       :rows="20"
       :placeholder="inputPlaceholder"
       resize="none"
+      ref="contentInput"
     />
 
     <!-- 按钮栏 -->
@@ -76,13 +77,12 @@
           {{ t('common.save') }}
         </el-button>
         <el-button
-          type="primary"
+          :type= "generating? 'danger':'primary'"
           @click="handleGenerate"
-          :loading="generating"
-          :disabled="isOperating"
+          
         >
-          <el-icon><Plus /></el-icon>
-          {{ t('textCreation.write')}}
+          <el-icon><VideoPause v-if="generating" /><Plus v-else /></el-icon>
+          {{ !generating? t('textCreation.write'):t('textCreation.stop') }}
         </el-button>
       </div>
     </div>
@@ -90,11 +90,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Plus, ScaleToOriginal, Check, User } from '@element-plus/icons-vue'
+import { Plus, ScaleToOriginal, Check, User,VideoPause } from '@element-plus/icons-vue'
 import { chapterApi } from '@/api/chapter_api'
 
 const route = useRoute()
@@ -120,8 +120,11 @@ const extracting = ref(false)  // 是否正在提取角色
 // 自动保存定时器
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 
+// 引用文本框
+const contentInput = ref(null)
+
 // 监听内容变化，5秒后触发自动保存
-watch(content, (newValue) => {
+watch(content,async (newValue) => {
   if (autoSaveTimer) {
     clearTimeout(autoSaveTimer)
   }
@@ -129,15 +132,13 @@ watch(content, (newValue) => {
   // 标记内容已变化
   hasContentChanged.value = true
   
-  // if (newValue.trim() && !isOperating.value) {
-  //   autoSaveTimer = setTimeout(async () => {
-  //     try {
-  //       await handleSave(false)
-  //     } catch (error) {
-  //       console.error('Auto save failed:', error)
-  //     }
-  //   }, 5000)
-  // }
+  // 自动滚动到文本框底部
+  await nextTick()
+  if (contentInput.value) {
+    const textarea = contentInput.value.$el.querySelector('textarea')
+    textarea.scrollTop = textarea.scrollHeight
+  }
+
 })
 
 // 计算属性
@@ -238,36 +239,109 @@ const handleSave = async (showMessage = true) => {
   }
 }
 
+const abortController = ref<AbortController | null>(null)//用于中断流式输出
+
 // 使用AI生成或续写文本内容
 const handleGenerate = async () => {
-  if (!content.value.trim()) {
-    ElMessage.warning(t('error.contentRequired'))
-    return
-  }
-
   try {
-    generating.value = true
-    const data = await chapterApi.generateChapter({
+    // 如果正在生成则触发停止
+    if (generating.value && abortController.value) {
+      abortController.value.abort()
+      generating.value = false
+      return
+    }
+
+    generating.value = true;
+    abortController.value = new AbortController()
+    
+    // 调用API（自动处理流式）
+    const stream = await chapterApi.generateChapter({
       project_name: projectName.value,
       chapter_name: currentChapter.value,
       prompt: content.value,
       is_continuation: isContinueMode.value,
-      use_last_chapter: useLastChapter.value
-    })
-    if(isContinueMode.value){
-      content.value = content.value+"\n"+data
-    }else{
-      content.value = data
+      use_last_chapter: useLastChapter.value,
+      signal: abortController.value?.signal
+    }) as ReadableStream
+    // 非续写模式清空内容
+    if (!isContinueMode.value) content.value = ''
+
+
+
+    const reader = stream.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    let eventBuffer = ''
+
+    let breakLine = 0;
+
+    const processEvent = (eventData: string) => {
+      const dataLines = eventData.split('\n')
+      let contentData = ''
+      
+      // 合并多个data字段
+      dataLines.forEach(line => {
+        if (line.startsWith('data: ')) {
+          contentData += line.slice(6) // 移除"data: "前缀
+        }
+      })
+
+      // 处理特殊字符和换行
+      contentData = contentData
+        .replace(/\\n/g, '\n')
+        .replace(/\\'/g, "'")
+        .replace(/\\"/g, '"')
+        .trim()
+
+      if (contentData && contentData !== '[DONE]') {
+        content.value += contentData
+        breakLine = 0
+      } else {
+        breakLine++
+        if (breakLine >= 2) {
+          content.value += '\n'//识别换行
+          breakLine = 0
+        }
+      }
     }
-    // 标记内容已变化
-    hasContentChanged.value = true
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      
+      buffer += decoder.decode(value, { stream: true })
+      
+      // 分割完整事件（根据SSE规范，事件以\n\n分隔）
+      while (buffer.indexOf('\n\n') > -1) {
+        const eventEnd = buffer.indexOf('\n\n')
+        let eventChunk = buffer.slice(0, eventEnd)
+        buffer = buffer.slice(eventEnd + 2)
+   
+        // 合并连续事件中的data字段
+        eventBuffer += eventChunk
+        processEvent(eventBuffer)
+        eventBuffer = ''
+      }
+    }
+
+    // 处理剩余数据
+    if (buffer.length > 0) {
+      processEvent(buffer)
+    }
+
+    // 确保滚动到底部
+    await nextTick()
+    if (contentInput.value) {
+      const textarea = contentInput.value.$el.querySelector('textarea')
+      textarea.scrollTop = textarea.scrollHeight
+    }
+
   } catch (error: any) {
-    ElMessage.error(error.message || t('error.generateFailed'))
+    console.log(error)
   } finally {
     generating.value = false
   }
 }
-
 // 将当前章节分割为多个span
 const handleSplitChapter = async () => {
   if (!currentChapter.value || !content.value) return

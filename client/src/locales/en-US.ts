@@ -107,6 +107,7 @@ export default {
     createMode: 'Create Mode',
     useLastChapter: 'Reference Last Chapter',
     write: 'Write',
+    stop: 'Stop',
     continuePlaceholder: 'Enter text content, then click Write',
     createPlaceholder: 'Enter creation requirements, then click Write',
     chapterCreated: 'Chapter created successfully',
