@@ -7,11 +7,13 @@ from datetime import datetime
 from server.utils.response import make_response
 
 from server.services.llm_service import LLMService
+from server.services.chapter_file_service import ChapterFileService
 import logging
 from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix='/chapter')
 llm_service = LLMService()
+chapter_file_server=ChapterFileService()
 
 @router.post('/create')
 async def create_chapter(request: Request):
@@ -28,7 +30,7 @@ async def create_chapter(request: Request):
         project_path = os.path.join(projects_path, project_name)
 
         # 获取最新章节号
-        latest_num = llm_service.get_latest_chapter(project_path)
+        latest_num = chapter_file_server.get_latest_chapter(project_path)
         new_chapter = f'chapter{latest_num + 1}'
         new_chapter_path = os.path.join(project_path, new_chapter)
         
@@ -66,7 +68,7 @@ async def generate_chapter(request: Request):
 
         # 获取上一章内容作为上下文
         if use_last_chapter:
-            last_content = llm_service.get_chapter_content(project_name, f'chapter{int(chapter_name[7:]) - 1}')
+            last_content = chapter_file_server.get_chapter_content(project_name, f'chapter{int(chapter_name[7:]) - 1}')
         else:
             last_content = ''
         
@@ -144,7 +146,7 @@ async def split_text(request: Request):
     
     try:
         # 使用 llm_service 获取章节内容
-        content = llm_service.get_chapter_content(project_name, chapter_name)
+        content = chapter_file_server.get_chapter_content(project_name, chapter_name)
         if not content:
             return make_response(status='error', msg=f'Content not found for chapter {chapter_name}')
         
@@ -154,9 +156,10 @@ async def split_text(request: Request):
         # 检查是否有错误
         if spans_and_prompts and all('error' in span for span in spans_and_prompts):
             return make_response(status='error', msg='文本分割失败', detail=spans_and_prompts)
-        
+
+
         # 生成对应的文件
-        llm_service.generate_span_files(project_name, chapter_name, spans_and_prompts)
+        chapter_file_server.generate_span_files(project_name, chapter_name, spans_and_prompts)
             
         return make_response(status='success', msg='分割成功', data=spans_and_prompts)
         
@@ -192,7 +195,7 @@ async def get_chapter_list(project_name: str):
 async def get_chapter_content(project_name: str, chapter_name: str):
     """获取指定章节的content.txt内容"""
     try:
-        content = llm_service.get_chapter_content(project_name, chapter_name)
+        content = chapter_file_server.get_chapter_content(project_name, chapter_name)
         # 即使内容为空也返回成功，因为这是新建章节的正常情况
         return make_response(data={'content': content}, msg='获取成功')
         
@@ -223,7 +226,7 @@ async def extract_characters(request: Request):
             content = f.read()
 
         # 调用LLM服务提取角色
-        characters = llm_service.extract_character(content, project_name)
+        characters =await llm_service.extract_character(content, project_name)
         return make_response(data=characters, msg='提取成功')
 
     except Exception as e:
@@ -266,6 +269,7 @@ async def get_chapter_scene_list(project_name: str, chapter_name: str):
             scene_list.append({
                 'id': str(item),
                 'content': content,
+                'base_scene': prompt_data.get('base_scene', ''),
                 'scene': prompt_data.get('scene', ''),
                 'prompt': prompt_data.get('prompt', '')
             })
@@ -295,7 +299,8 @@ async def translate_prompt(request: Request):
             
         if not isinstance(prompts, list):
             return make_response(status='error', msg='prompts 必须是一个列表')
-            
+
+
         translated_prompts =await llm_service.translate_prompt(project_name, prompts)
         return make_response(data=translated_prompts, msg='翻译提示词成功')
         
@@ -343,6 +348,7 @@ async def save_scenes(request: Request):
             # 保存场景描述和提示词
             if 'scene' in scene or 'prompt' in scene:
                 prompt_data = {
+                    'base_scene': scene.get('base_scene', ''),
                     'scene': scene.get('scene', ''),
                     'prompt': scene.get('prompt', '')
                 }

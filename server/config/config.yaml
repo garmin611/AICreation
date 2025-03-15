@@ -8,6 +8,6 @@ llm:
   model_name: deepseek-ai/DeepSeek-V2.5
   proxies: null
   verify_ssl: false
-  window_size: 3  # 文本分割的窗口大小，-1表示不分割
+  window_size: 4 # 文本分割的窗口大小，-1表示不分割
 projects_path: ../projects/
 prompts_path: prompts/

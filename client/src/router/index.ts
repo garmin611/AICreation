@@ -31,6 +31,11 @@ const router = createRouter({
           component: () => import('@/views/ProjectMain/CharacterLibrary/index.vue')
         },
         {
+          path: 'scene-library',
+          name: 'SceneLibrary',
+          component: () => import('@/views/ProjectMain/SceneLibrary/index.vue')
+        },
+        {
           path: 'storyboard-process',
           name: 'StoryboardProcess',
           component: () => import('@/views/ProjectMain/StoryboardProcess/index.vue')

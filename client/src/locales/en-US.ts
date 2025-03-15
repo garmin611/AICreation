@@ -59,6 +59,7 @@ export default {
     sceneList: 'Scene List',
     spanContent: 'Span Content',
     sceneDescription: 'Scene Description',
+    baseScene:'Base Scene',
     prompt: 'Prompt',
     image: 'Image',
     voicing: 'Voice',
@@ -79,7 +80,7 @@ export default {
     narrator: 'Narrator',
     speakingRate: 'Speaking Rate',
     chapterList: 'Chapter List',
-    convertAllPrompts: 'Convert All Prompts',
+    convertSelectedPrompts: 'Convert Selected Prompts',
     saveAll: 'Save All',
     styleRealistic: 'Realistic',
     styleAnime: 'Anime',
@@ -95,6 +96,7 @@ export default {
   projectMain: {
     textCreation: 'Text Creation',
     characterLibrary: 'Character Library',
+    sceneLibrary: 'Scene Library',
     storyboardProcess: 'Storyboard Process',
     videoOutput: 'Video Output'
   },
@@ -114,7 +116,7 @@ export default {
     extractCharacters: 'Extract Characters',
     extractSuccess: 'Characters extracted successfully'
   },
-  character: {
+  entity: {
     entityName: 'Entity Name',
     role: 'Role',
     description: 'Description',
@@ -132,10 +134,10 @@ export default {
     lockConfirmContent: 'After locking, the entity information cannot be automatically updated',
     confirm: 'Confirm',
     cancel: 'Cancel',
-    delete: 'Delete Character',
-    deleteConfirm: 'Are you sure you want to delete this character?',
-    deleteSuccess: 'Character deleted successfully',
-    deleteError: 'Failed to delete character',
+    delete: 'Delete Entity',
+    deleteConfirm: 'Are you sure you want to delete this entity?',
+    deleteSuccess: 'Entity deleted successfully',
+    deleteError: 'Failed to delete Entity',
     operationFailed: 'Operation failed'
   },
   success: {
@@ -150,6 +152,7 @@ export default {
     generateFailed: 'Failed to generate'
   },
   menu: {
-    characterLibrary: 'Character Library'
+    characterLibrary: 'Character Library',
+    sceneLibrary: 'Scene Library',
   }
 }

@@ -9,17 +9,10 @@ from openai import OpenAI, AsyncOpenAI
 import httpx
 from httpx import Timeout
 from server.services.kg_service import KGService
+from server.services.scene_service import SceneService
 from .base_service import SingletonService
 import re
 
-# 配置日志输出
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()  # 输出到控制台
-    ]
-)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +30,7 @@ class LLMService(SingletonService):
         self.prompts_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'prompts')
         self.projects_path = self.config.get('projects_path', 'projects/')
         self.kg_service = KGService()
+        self.scene_service = SceneService()
         
         # 配置HTTP客户端参数
         transport_params = {
@@ -94,7 +88,7 @@ class LLMService(SingletonService):
         self._prompt_cache[prompt_file] = prompt
         return prompt
     
-    def _make_api_request(self, messages: List[dict], tools: Optional[List[dict]] = None,force_json: bool = False) -> dict:
+    async def _make_async_api_request(self, messages: List[dict], tools: Optional[List[dict]] = None,force_json: bool = False,model_name:str="") -> Any:
         """
         调用LLM API，包含更好的错误处理
         
@@ -111,11 +105,14 @@ class LLMService(SingletonService):
         max_retries = 3
         retry_count = 0
         last_error = None
+
+        if model_name=="":
+            model_name=self.model_name
         
         while retry_count < max_retries:
             try:
                 kwargs = {
-                    'model': self.model_name,
+                    'model': model_name,
                     'messages': messages,
                     'temperature': 0.7,
                     'stream': False,
@@ -129,8 +126,8 @@ class LLMService(SingletonService):
                     kwargs['tools'] = tools
                     kwargs['tool_choice'] = 'auto'
 
-                logger.debug(f"发生请求到 {self.api_url} ，调用模型： {self.model_name}")
-                response = self.client.chat.completions.create(**kwargs)
+                logger.debug(f"发生请求到 {self.api_url} ，调用模型： {model_name}")
+                response =await self.async_client.chat.completions.create(**kwargs)
 
                 if not response.choices:
                     raise Exception("API 响应中没有内容")
@@ -139,7 +136,14 @@ class LLMService(SingletonService):
                 if not message or (not message.content and not message.tool_calls):
                     raise Exception("API 响应中没有有效内容")
 
+                if force_json:
+                    try:
+                        return json.loads(message.content)
+                    except json.JSONDecodeError as e:
+                        raise Exception(f"API 响应内容无法解析为 JSON: {str(e)}")
+
                 return message
+         
 
             except Exception as e:
                 retry_count += 1
@@ -149,7 +153,7 @@ class LLMService(SingletonService):
 
                 # 如果是速率限制错误，增加等待时间
                 if "rate" in error_msg.lower():
-                    wait_time = min(2 ** retry_count, 60)  # 指数退避，最大60秒
+                    wait_time = min(2 ** retry_count, 30)  # 指数退避，最大30秒
                     logger.info(f"速率限制触发，等待 {wait_time} 秒后重试")
                     time.sleep(wait_time)
                 else:
@@ -158,31 +162,7 @@ class LLMService(SingletonService):
         # 所有重试失败后抛出异常
         raise Exception(f"API请求失败，最大重试次数 ({max_retries}) 已用尽。最后一次错误: {last_error}")
 
-    async def _make_async_api_request(self, messages: List[dict], tools: Optional[List[dict]] = None, force_json: bool = False) -> Any:
-        """异步调用LLM API"""
-        try:
-            
-            kwargs = {
-                "model": self.model_name,
-                "messages": messages,
-                "temperature": 0.7,
-                'stream': False,
-                'timeout': 90  # 设置90秒超时
-            }
-            if force_json:
-                kwargs["response_format"] = {"type": "json_object"}
-            if tools:
-                kwargs["tools"] = tools
-            
-            response = await self.async_client.chat.completions.create(**kwargs)
-            
-            return response
-            
-        except Exception as e:
-            logging.error(f"调用LLM API时出错: {str(e)}")
-            raise
-
-    async def _make_async_api_request_stream(self, messages: List[dict], tools: Optional[List[dict]] = None, force_json: bool = False) -> AsyncGenerator[str, None]:
+    async def _make_async_api_request_stream(self, messages: List[dict], tools: Optional[List[dict]] = None, force_json: bool = False) -> Any:
         """异步调用LLM API，返回流式响应"""
         try:
             
@@ -279,7 +259,7 @@ class LLMService(SingletonService):
         logging.info(f"添加的消息数量：{len(messages)}")
         return result, messages
     
-    def _process_llm_response(self, messages: List[dict], project_name: str, tools: List[dict]=None) -> Any:
+    async def _process_llm_function_call(self, messages: List[dict], project_name: str, tools: List[dict]=None) -> Any:
         """
         处理 LLM 响应，包括工具调用
         
@@ -291,7 +271,7 @@ class LLMService(SingletonService):
         返回:
             Any: LLM响应结果
         """
-        max_rounds = 10  # 最大工具调用轮数，防止无限循环
+        max_rounds = 6  # 最大工具调用轮数，防止无限循环
         current_round = 0
         result = None
         
@@ -308,14 +288,10 @@ class LLMService(SingletonService):
             logging.info(f"开始第 {current_round + 1} 轮处理")
             
             # 调用 LLM API
-            response = self._make_api_request(messages, tools=tools)
+            response =await self._make_async_api_request(messages, tools=tools)
             if not response:
                 raise Exception("LLM API 请求失败")
             
-            logging.info(f"LLM响应：{response}")
-            if hasattr(response, 'content'):
-                logging.info(f"响应内容：{response.content}")
-                result = response.content
                 
             # 只在有工具时才处理工具调用
             if has_tools and hasattr(response, 'tool_calls') and response.tool_calls:
@@ -359,29 +335,31 @@ class LLMService(SingletonService):
         arguments['project_name'] = project_name
         return arguments
 
-    async def _process_text_chunk_async(self, text: str) -> list:
+    async def _process_text_chunk_async(self, text: str,system_prompt) -> list:
         """异步处理单个文本块"""
         try:
-            chunk_preview = text[:50] + "..." if len(text) > 50 else text
-
-            system_prompt = self._load_prompt('text_splitting.txt')
+        
             messages = [
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': text}
             ]
             
-            response = await self._make_async_api_request(messages, force_json=True)
-            result = response.choices[0].message.content
+            result = await self._make_async_api_request(messages, force_json=True)
+               
             
             # 解析结果
-            if isinstance(result, str):
+            if isinstance(result, str) or isinstance(result, dict):
                 try:
-                    data = json.loads(result)
+                    if isinstance(result, str):
+                        data = json.loads(result)
+                    else:
+                        data = result
                     if isinstance(data, dict) and "spans" in data:
                         spans = []
                         for span in data["spans"]:
                             spans.append({
                                 "content": span["content"],
+                                "base_scene":span["base_scene"],
                                 "scene": span["scene"]
                             })
                         logging.info(f"文本块处理完成，生成了 {len(spans)} 个场景")
@@ -414,16 +392,49 @@ class LLMService(SingletonService):
         # 初始化 text_chunks 列表
         text_chunks = []
 
+        # 使用正则表达式按照句号、感叹号或对话结束进行分割
+        split_pattern = r'(?<=[。！？])(?![^“”]*”)\s*'  # 匹配句号/感叹号/问号，且后面没有右引号
+        sentences = re.split(split_pattern, text)
+        # 处理换行符并保留必要空格
+        sentences = [s.replace('\n', ' ') for s in sentences if s.strip()]
+        text = "\n".join(sentences)
+
+
+
+        scene_generation_prompt= self._load_prompt("scene_extraction.txt")
+        scene_names=self.scene_service.get_scene_names(project_name)
+
+        system_prompt=scene_generation_prompt.replace("{scenes}",",".join(scene_names))
+
+        messages = [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': text}
+            ]
+
+        response =await self._make_async_api_request(messages, force_json=True)
+
+      
+
+        self.scene_service.update_scenes(project_name, response)
+
+        text_desc_prompt= self._load_prompt("text_desc_prompt.txt")
+
+        scene_names=self.scene_service.get_scene_names(project_name)
+        entities_names=self.kg_service.inquire_entity_names(project_name)
+
+        text_desc_prompt=text_desc_prompt.replace("{scenes}",",".join(scene_names))
+        text_desc_prompt=text_desc_prompt.replace("{entities}",",".join(entities_names))
+
         # 如果 window_size <= 0，直接处理整个文本
         if window_size <= 0:
-            # 不使用滑动窗口，整个文本一次性处理
+            # 不使用窗口，整个文本一次性处理
             text_chunks = [text]
             logging.info("使用整体文本处理模式")
         else:
-            # 使用滑动窗口来保持上下文连贯性
+            # 使用窗口来保持上下文连贯性
             paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
-            OVERLAP_PARAGRAPHS = 1  # 与前后块重叠的段落数
-            logging.info(f"使用滑动窗口处理模式，窗口大小: {window_size}，重叠段落数: {OVERLAP_PARAGRAPHS}")
+
+            logging.info(f"使用窗口处理模式，窗口大小: {window_size}")
 
             i = 0
             while i < len(paragraphs):
@@ -431,28 +442,18 @@ class LLMService(SingletonService):
                 window_end = min(i + window_size, len(paragraphs))
                 current_paragraphs = paragraphs[i:window_end]
 
-                # 如果不是第一个块，添加前文上下文
-                if i > 0:
-                    context_start = max(0, i - OVERLAP_PARAGRAPHS)
-                    current_paragraphs = paragraphs[context_start:i] + current_paragraphs
-
-                # 如果不是最后一个块，添加后文上下文
-                if window_end < len(paragraphs):
-                    context_end = min(len(paragraphs), window_end + OVERLAP_PARAGRAPHS)
-                    current_paragraphs = current_paragraphs + paragraphs[window_end:context_end]
-
                 # 合并段落
                 chunk_text = "\n".join(current_paragraphs)
                 text_chunks.append(chunk_text)
 
-                # 移动窗口，但不包括重叠部分
-                i += window_size - OVERLAP_PARAGRAPHS
+                # 移动窗口
+                i += window_size 
 
         logging.info(f"文本已分割为 {len(text_chunks)} 个块")
 
         # 使用异步并行处理所有文本块
         async def process_all_chunks():
-            tasks = [self._process_text_chunk_async(chunk) for chunk in text_chunks]
+            tasks = [self._process_text_chunk_async(chunk,text_desc_prompt) for chunk in text_chunks]
             results = await asyncio.gather(*tasks)
 
             # 如果使用了滑动窗口，需要去重
@@ -479,27 +480,6 @@ class LLMService(SingletonService):
             logging.error(f"分割文本时发生错误：{str(e)}")
             raise
 
-    def get_chapter_content(self, project_name: str, chapter_name: str) -> str:
-        """
-        获取指定章节的content.txt文件内容
-        
-        参数:
-            project_name (str): 项目名称
-            chapter_name (str): 章节名称，例如 'chapter6'
-            
-        返回:
-            str: 章节内容，如果文件不存在则返回空字符串
-        """
-        try:
-            chapter_path = os.path.join(self.projects_path, project_name, chapter_name)
-            content_path = os.path.join(chapter_path, 'content.txt')
-            if os.path.exists(content_path):
-                with open(content_path, 'r', encoding='utf-8') as f:
-                    return f.read()
-            return ''
-        except Exception as e:
-            logger.error(f"Error reading chapter content: {e}")
-            return ''
 
     async def generate_text(self, prompt: str, project_name: str, last_content: str = '') -> AsyncGenerator[str, None]:
         """生成文本"""
@@ -549,7 +529,7 @@ class LLMService(SingletonService):
         finally:
             logger.info("续写生成器资源已释放")
 
-    def extract_character(self, text: str, project_name: str) -> dict:
+    async def extract_character(self, text: str, project_name: str) -> dict:
         """
         从文本中提取人物信息
 
@@ -574,8 +554,8 @@ class LLMService(SingletonService):
         # 获取知识图谱工具
         tools = self.kg_service.get_tools()
         
-        # 使用通用的处理方法处理响应
-        result = self._process_llm_response(messages, project_name, tools=tools)
+        # 处理工具调用响应
+        result =await self._process_llm_function_call(messages, project_name, tools=tools)
         
         # 查询所有实体
         entities = self.kg_service.inquire_entity_list(project_name=project_name)
@@ -616,11 +596,15 @@ class LLMService(SingletonService):
             翻译后的提示词列表
         """
         try:
-            # 收集所有提示词中的实体名称
+            # 收集所有提示词中的实体或基底场景名称
             all_entity_names = set()
+            all_scene_names=set()
             for prompt in prompts:
                 entity_names = re.findall(r'\{([^}]+)\}', prompt)
                 all_entity_names.update(entity_names)
+                scene_names=re.findall(r'\$\$([^$]+)\$\$', prompt)  #
+                all_scene_names.update(scene_names)
+
             
             # 找到对应的实体信息
             entity_infos = []
@@ -630,11 +614,18 @@ class LLMService(SingletonService):
                         info_str = f"{entity['name']}：{entity.get('attributes', {}).get('description', '')}"
                         entity_infos.append(info_str)
                         break
-            
+            scene_dict=self.scene_service.get_scene_dict(project_name,all_scene_names)
+            scene_infos=[f"{scene_name}:{scene_dict[scene_name]}" for scene_name in all_scene_names]
+
             # 复制系统提示词并替换实体信息
             current_system_prompt = system_prompt
             if entity_infos:
                 current_system_prompt = current_system_prompt.replace('{entities}', '\n'.join(entity_infos))
+
+            if scene_infos:
+                current_system_prompt = current_system_prompt.replace('{scenes}', '\n'.join(scene_infos))
+
+           
             
             # 将提示词分成更小的批次（每批5个）
             batch_size = 5
@@ -663,11 +654,10 @@ class LLMService(SingletonService):
                 
                 # 调用 LLM API
                 response = await self._make_async_api_request(messages)
-                if not response or not response.choices or not response.choices[0].message.content:
-                    raise Exception("LLM返回了空的响应")
+                
                 
                 # 解析响应
-                result = response.choices[0].message.content.strip()
+                result = response.content.strip()
                 batch_results = []
                 
                 # 使用正则表达式匹配编号的提示词
@@ -739,66 +729,3 @@ class LLMService(SingletonService):
             logging.error(f'翻译提示词失败: {str(e)}')
             raise
 
-    def get_latest_chapter(self, project_path: str) -> int:
-        """获取最新章节编号"""
-        if not os.path.exists(project_path):
-            raise Exception(f"项目路径不存在: {project_path}")
-            
-        chapters = [d for d in os.listdir(project_path) 
-                   if os.path.isdir(os.path.join(project_path, d)) 
-                   and d.startswith("chapter")]
-        if not chapters:
-            return 1
-            
-        latest = max(int(ch.replace("chapter", "")) for ch in chapters)
-        return latest
-
-    def generate_span_files(self, project_name: str, chapter_name: str, spans_and_prompts: List[dict]) -> None:
-        """
-        为每个文本片段生成对应的文件
-
-        Args:
-            project_name: 项目名称
-            chapter_name: 章节名称
-            spans_and_prompts: 包含文本片段和场景描述的列表
-            
-        Raises:
-            Exception: 当章节目录不存在时抛出
-        """
-        try:
-            # 构建章节目录路径
-            chapter_dir = os.path.join('projects', project_name,  chapter_name)
-            
-            # 如果章节目录不存在，直接返回
-            if not os.path.exists(chapter_dir):
-                raise Exception(f"章节目录不存在: {chapter_dir}")
-            
-            # 清空现有的子文件夹
-            for item in os.listdir(chapter_dir):
-                item_path = os.path.join(chapter_dir, item)
-                if os.path.isdir(item_path) and item.isdigit():  # 只删除数字命名的文件夹
-                    import shutil
-                    shutil.rmtree(item_path)
-            
-            # 为每个片段创建文件
-            for i, span in enumerate(spans_and_prompts):
-                span_dir = os.path.join(chapter_dir, str(i+1))
-                os.makedirs(span_dir, exist_ok=True)
-                
-                # 写入span.txt
-                with open(os.path.join(span_dir, 'span.txt'), 'w', encoding='utf-8') as f:
-                    f.write(span['content'])
-                
-                # 写入prompt.json
-                prompt_data = {
-                    'scene': span['scene'],
-                    'prompt': ''  # 默认为空
-                }
-                with open(os.path.join(span_dir, 'prompt.json'), 'w', encoding='utf-8') as f:
-                    json.dump(prompt_data, f, ensure_ascii=False, indent=2)
-                    
-            logging.info(f"已为章节 {chapter_name} 生成 {len(spans_and_prompts)} 个场景文件")
-            
-        except Exception as e:
-            logging.error(f"生成场景文件时出错: {str(e)}")
-            raise e

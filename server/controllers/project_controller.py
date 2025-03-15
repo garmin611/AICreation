@@ -36,6 +36,10 @@ async def create_project(request: Request):
                 'relationships': [],
                 'entities': []
             }, f, ensure_ascii=False, indent=2)
+
+        scenes_path = os.path.join(project_path, 'scenes.json')
+        with open(scenes_path, 'w', encoding='utf-8') as f:
+            json.dump({}, f, ensure_ascii=False, indent=2)
             
         # 自动创建第一个章节
         first_chapter = 'chapter1'

@@ -19,7 +19,7 @@
       border
     >
       <el-table-column
-        :label="t('character.entityName')"
+        :label="t('entity.entityName')"
         prop="name"
         width="120"
         align="center"
@@ -29,7 +29,7 @@
         </template>
       </el-table-column>
       <el-table-column
-        :label="t('character.role')"
+        :label="t('entity.role')"
         width="150"
         align="center"
       >
@@ -38,13 +38,13 @@
             v-model="row.attributes.role"
             type="textarea"
             :rows="2"
-            :placeholder="t('character.role')"
+            :placeholder="t('entity.role')"
             :disabled="isLocked(row.name)"
           />
         </template>
       </el-table-column>
       <el-table-column
-        :label="t('character.description')"
+        :label="t('entity.description')"
         min-width="240"
         align="center"
       >
@@ -52,8 +52,8 @@
           <el-input
             v-model="row.attributes.description"
             type="textarea"
-            :rows="3"
-            :placeholder="t('character.description')"
+            :rows="5"
+            :placeholder="t('entity.description')"
             :disabled="isLocked(row.name)"
           />
         </template>
@@ -70,14 +70,14 @@
                 :type="isLocked(row.name) ? 'warning' : 'primary'"
                 @click="handleLockClick(row)"
               >
-                {{ isLocked(row.name) ? t('character.unlockPrompt') : t('character.lockPrompt') }}
+                {{ isLocked(row.name) ? t('entity.unlockPrompt') : t('entity.lockPrompt') }}
               </el-button>
               <el-button
                 type="info"
                 :disabled="isLocked(row.name)"
                 @click="openReversePrompt(row)"
               >
-                {{ t('character.reversePrompt') }}
+                {{ t('entity.reversePrompt') }}
               </el-button>
             </div>
             <div class="button-row">
@@ -86,14 +86,14 @@
                 :disabled="isLocked(row.name)"
                 @click="savePrompt(row)"
               >
-                {{ t('character.savePrompt') }}
+                {{ t('entity.savePrompt') }}
               </el-button>
               <el-button
                 type="danger"
                 :disabled="isLocked(row.name)"
                 @click="deleteEntity(row)"
               >
-                {{ t('character.delete') }}
+                {{ t('entity.delete') }}
               </el-button>
             </div>
           </div>
@@ -104,7 +104,7 @@
     <!-- 反推提示词对话框 -->
     <el-dialog
       v-model="reversePromptVisible"
-      :title="t('character.reversePromptTitle')"
+      :title="t('entity.reversePromptTitle')"
       width="600px"
     >
       <div class="reverse-prompt-dialog">
@@ -118,7 +118,7 @@
         >
           <div class="upload-content">
             <el-icon class="upload-icon"><Upload /></el-icon>
-            <div class="upload-text">{{ t('character.uploadImage') }}</div>
+            <div class="upload-text">{{ t('entity.uploadImage') }}</div>
             <img v-if="selectedImage" :src="selectedImage" class="preview-image" />
           </div>
         </el-upload>
@@ -131,10 +131,10 @@
         <!-- 按钮区域 -->
         <div class="dialog-footer">
           <el-button @click="reversePromptVisible = false">
-            {{ t('character.cancel') }}
+            {{ t('entity.cancel') }}
           </el-button>
           <el-button type="primary" @click="confirmReversePrompt">
-            {{ t('character.confirm') }}
+            {{ t('entity.confirm') }}
           </el-button>
         </div>
       </div>
@@ -147,9 +147,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { UploadFile, UploadFiles } from 'element-plus'
-import { Lock, Unlock, RefreshRight, Check, Search, Upload } from '@element-plus/icons-vue'
-import { characterApi } from '@/api/character_api'
+import type { UploadFile } from 'element-plus'
+import {  Search, Upload } from '@element-plus/icons-vue'
+import { entityApi } from '@/api/entity_api'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -190,7 +190,7 @@ const isLocked = (name: string) => {
 const fetchCharacters = async () => {
   loading.value = true
   try {
-    const data = await characterApi.getCharacterList(projectName.value)
+    const data = await entityApi.getCharacterList(projectName.value)
     console.log(data)
     characters.value = data.characters
     lockedEntities.value = data.locked_entities
@@ -204,11 +204,11 @@ const fetchCharacters = async () => {
 const handleLockClick = async (row: Character) => {
   if (!isLocked(row.name)) {
     ElMessageBox.confirm(
-      t('character.lockConfirmContent'),
-      t('character.lockConfirmTitle'),
+      t('entity.lockConfirmContent'),
+      t('entity.lockConfirmTitle'),
       {
-        confirmButtonText: t('character.confirm'),
-        cancelButtonText: t('character.cancel'),
+        confirmButtonText: t('entity.confirm'),
+        cancelButtonText: t('entity.cancel'),
         type: 'warning',
       }
     )
@@ -226,18 +226,18 @@ const handleLockClick = async (row: Character) => {
 
 const toggleLock = async (row: Character) => {
   try {
-    const response = await characterApi.toggleLock(projectName.value, row.name)
+    const response = await entityApi.toggleLock(projectName.value, row.name)
     if (response.is_locked) {
-      ElMessage.success(t('character.lockSuccess'))
+      ElMessage.success(t('entity.lockSuccess'))
       if (!lockedEntities.value.includes(row.name)) {
         lockedEntities.value.push(row.name)
       }
     } else {
-      ElMessage.success(t('character.unlockSuccess'))
+      ElMessage.success(t('entity.unlockSuccess'))
       lockedEntities.value = lockedEntities.value.filter(name => name !== row.name)
     }
   } catch (error) {
-    ElMessage.error(t('character.operationFailed'))
+    ElMessage.error(t('entity.operationFailed'))
   }
 }
 
@@ -248,7 +248,7 @@ const openReversePrompt = (row: Character) => {
   reversePromptVisible.value = true
 }
 
-const handleImageChange = (uploadFile: UploadFile, uploadFiles: UploadFiles) => {
+const handleImageChange = (uploadFile: UploadFile) => {
   if (uploadFile.raw) {
     selectedImage.value = URL.createObjectURL(uploadFile.raw)
   }
@@ -265,11 +265,12 @@ const confirmReversePrompt = () => {
 
 const savePrompt = async (row: Character) => {
   try {
-    const data = await characterApi.updateCharacter(projectName.value, {
+    const data = await entityApi.updateCharacter(projectName.value, {
       name: row.name,
       attributes: row.attributes
     })
-    ElMessage.success(t('character.updateSuccess'))
+    if(data)
+      ElMessage.success(t('entity.updateSuccess'))
   } catch (error) {
     ElMessage.error(String(error))
   }
@@ -278,25 +279,25 @@ const savePrompt = async (row: Character) => {
 const deleteEntity = async (row: any) => {
   try {
     await ElMessageBox.confirm(
-      t('character.deleteConfirm'),
-      t('character.warning'),
+      t('entity.deleteConfirm'),
+      t('common.warning'),
       {
-        confirmButtonText: t('character.confirm'),
-        cancelButtonText: t('character.cancel'),
+        confirmButtonText: t('entity.confirm'),
+        cancelButtonText: t('entity.cancel'),
         type: 'warning',
       }
     )
     
-    const res = await characterApi.deleteCharacter(projectName.value, row.name)
+    const res = await entityApi.deleteCharacter(projectName.value, row.name)
     if (res.status === 'success') {
-      ElMessage.success(t('character.deleteSuccess'))
+      ElMessage.success(t('entity.deleteSuccess'))
       await fetchCharacters()
     } else {
-      ElMessage.error(res.data.message || t('character.deleteError'))
+      ElMessage.error(res.data.message || t('entity.deleteError'))
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(t('character.operationFailed'))
+      ElMessage.error(t('entity.operationFailed'))
     }
   }
 }
@@ -426,3 +427,4 @@ onMounted(() => {
   font-weight: bold;
 }
 </style>
+@/api/entity_api

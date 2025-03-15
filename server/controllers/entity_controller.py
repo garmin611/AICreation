@@ -3,17 +3,19 @@ import json
 import os
 import logging
 from server.services.kg_service import KGService
+from server.services.scene_service import SceneService
 from server.utils.response import make_response
 
-router = APIRouter(prefix='/character')
+router = APIRouter(prefix='/entity')
 kg_service = KGService()
+scene_service=SceneService()
 
-@router.get('/list')
+@router.get('/character/list')
 async def get_characters(project_name: str = Query(..., description="项目名称")):
     """获取项目中的所有角色信息"""
     try:
         if not project_name:
-            return make_response(status='error', msg='Missing project_name parameter')
+            return make_response(status='error', msg='项目不存在')
             
         # 获取实体列表
         characters = kg_service.inquire_entity_list(project_name)
@@ -29,7 +31,7 @@ async def get_characters(project_name: str = Query(..., description="项目名�
     except Exception as e:
         return make_response(status='error', msg=str(e))
 
-@router.post('/update')
+@router.post('/character/update')
 async def update_character(request: Request):
     """更新角色信息"""
     try:
@@ -39,7 +41,7 @@ async def update_character(request: Request):
         attributes = data.get('attributes', {})
         
         if not project_name:
-            return make_response(status='error', msg='Missing project_name parameter')
+            return make_response(status='error', msg='项目不存在')
             
         # 使用 kg_service 更新实体属性，并自动保存
         result = kg_service.modify_entity(project_name, name, attributes, save_kg=True)
@@ -47,7 +49,7 @@ async def update_character(request: Request):
     except Exception as e:
         return make_response(status='error', msg=str(e))
 
-@router.post('/toggle_lock')
+@router.post('/character/toggle_lock')
 async def toggle_lock(request: Request):
     """锁定/解锁实体提示词"""
     try:
@@ -56,7 +58,7 @@ async def toggle_lock(request: Request):
         entity_name = data.get('entity_name')
         
         if not project_name:
-            return make_response(status='error', msg='Missing project_name parameter')
+            return make_response(status='error', msg='项目不存在')
             
         # 使用 kg_service 切换实体锁定状态，并自动保存
         is_locked = kg_service.toggle_entity_lock(project_name, entity_name, save_kg=True)
@@ -64,7 +66,7 @@ async def toggle_lock(request: Request):
     except Exception as e:
         return make_response(status='error', msg=str(e))
 
-@router.delete('/{name}')
+@router.delete('/character/{name}')
 async def delete_character(name: str, project_name: str = Query(..., description="项目名称")):
     """
     删除角色实体
@@ -89,5 +91,70 @@ async def delete_character(name: str, project_name: str = Query(..., description
             return make_response(status='error', msg=result)
             
     except Exception as e:
-        logging.error(f"删除角色时出错: {str(e)}")
+        logging.error(f"删除实体时出错: {str(e)}")
+        return make_response(status='error', msg=str(e))
+
+@router.get('/scene/list')
+async def get_scenes(project_name: str = Query(..., description="项目名称")):
+    """获取项目中的所有基底场景信息"""
+    try:
+        if not project_name:
+            return make_response(status='error', msg='项目不存在')
+            
+        # 获取实体列表
+        scenes = scene_service.load_scenes(project_name)
+        scenes = json.loads(scenes) if isinstance(scenes, str) else scenes
+        
+        
+        return make_response(data={
+            'scenes': scenes,
+        })
+    except Exception as e:
+        return make_response(status='error', msg=str(e))
+
+@router.post('/scene/update')
+async def update_scenes(request: Request):
+    """更新角色信息"""
+    try:
+        data = await request.json()
+        project_name = data.get('project_name')
+        name = data.get('name')
+        prompt = data.get('prompt', "")
+   
+        if not project_name:
+            return make_response(status='error', msg='项目不存在')
+        
+        result = scene_service.update_scenes(project_name,{name:prompt},force_update=True)
+
+        return make_response(data=result)
+    except Exception as e:
+        return make_response(status='error', msg=str(e))
+
+
+@router.delete('/scene/{name}')
+async def delete_scene(name: str, project_name: str = Query(..., description="项目名称")):
+    """
+    删除角色实体
+    
+    参数:
+        name (str): 实体名称
+        
+    返回:
+        dict: 响应结果
+    """
+    try:
+        if not project_name:
+            return make_response(status='error', msg='项目不存在')
+            
+       
+        result = scene_service.delete_scenes(project_name, [name])
+        
+        # 检查删除结果
+        if result:
+            return make_response(data=result)
+        else:
+            return make_response(status='error', msg=result)
+            
+    except Exception as e:
+        logging.error(f"删除实体时出错: {str(e)}")
         return make_response(status='error', msg=str(e))

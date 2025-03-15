@@ -111,12 +111,15 @@ async def generate_audio(request: Request):
             prompt_texts.append(prompt_text)
         
         try:
+            rate=audio_settings.get('rate', '+0%')
+            if(rate=='0%'):
+                rate='+0%'
             # 调用音频服务生成音频
             result = await audio_service.generate_audio(
                 prompts=prompt_texts,
                 output_dirs=output_dirs,
-                # voice=audio_settings.get('voice', 'zh-CN-XiaoxiaoNeural'),
-                # rate=audio_settings.get('rate', '+0%')
+                voice=audio_settings.get('voice', 'zh-CN-XiaoxiaoNeural'),
+                rate=rate
             )
             return make_response(
                 data=result,

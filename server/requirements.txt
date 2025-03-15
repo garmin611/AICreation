@@ -1,5 +1,5 @@
 fastapi
-uvicorn[standard]
+uvicorn
 python-dotenv==0.21.1
 pyyaml==6.0.1
 requests==2.31.0
@@ -9,5 +9,6 @@ websocket-client==1.5.1
 edge-tts==7.0.0
 moviepy>=1.0.3
 numpy>=1.21.6
+pillow==9.5.0
 imageio-ffmpeg>=0.2.0
 proglog<=1.0.0

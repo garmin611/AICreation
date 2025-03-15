@@ -3,29 +3,41 @@
     <el-container>
       <!-- 侧边栏 -->
       <el-aside width="210px">
-        <el-menu
-          :default-active="activeRoute"
-          class="project-menu"
-          router
-        >
+        <el-menu :default-active="activeRoute" class="project-menu" router>
           <el-menu-item index="/project">
-            <el-icon><Back /></el-icon>
+            <el-icon>
+              <Back />
+            </el-icon>
             <span>{{ t('common.back') }}</span>
           </el-menu-item>
           <el-menu-item :index="`/project/${projectName}/text-creation`">
-            <el-icon><EditPen /></el-icon>
+            <el-icon>
+              <EditPen />
+            </el-icon>
             <span>{{ t('projectMain.textCreation') }}</span>
           </el-menu-item>
           <el-menu-item :index="`/project/${projectName}/character-library`">
-            <el-icon><User /></el-icon>
+            <el-icon>
+              <User />
+            </el-icon>
             <span>{{ t('projectMain.characterLibrary') }}</span>
           </el-menu-item>
+          <el-menu-item :index="`/project/${projectName}/scene-library`">
+            <el-icon>
+              <OfficeBuilding />
+            </el-icon>
+            <span>{{ t('projectMain.sceneLibrary') }}</span>
+          </el-menu-item>
           <el-menu-item :index="`/project/${projectName}/storyboard-process`">
-            <el-icon><PictureFilled /></el-icon>
+            <el-icon>
+              <PictureFilled />
+            </el-icon>
             <span>{{ t('projectMain.storyboardProcess') }}</span>
           </el-menu-item>
           <el-menu-item :index="`/project/${projectName}/video-output`">
-            <el-icon><VideoPlay /></el-icon>
+            <el-icon>
+              <VideoPlay />
+            </el-icon>
             <span>{{ t('projectMain.videoOutput') }}</span>
           </el-menu-item>
         </el-menu>
@@ -38,7 +50,7 @@
             {{ error }}
           </div>
           <el-loading :value="loading" />
-          
+
           <router-view v-if="!loading && !error" />
         </el-main>
       </el-container>
@@ -50,11 +62,11 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { EditPen, User, PictureFilled, VideoPlay, Back, ScaleToOriginal } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { EditPen, User, PictureFilled, VideoPlay, Back,OfficeBuilding } from '@element-plus/icons-vue'
+
 import type { ProjectInfo } from '@/types/project'
 import projectApi from '@/api/project_api'
-import { chapterApi } from '@/api/chapter_api'
+
 
 const route = useRoute()
 const router = useRouter()
@@ -67,19 +79,6 @@ const error = ref('')
 const projectName = computed(() => route.params.name as string)
 const activeRoute = computed(() => route.path)
 
-const currentChapter = ref('')
-
-// 处理分割章节
-const handleSplitChapter = async () => {
-  try {
-    await chapterApi.splitChapter(projectName.value, currentChapter.value)
-    ElMessage.success(t('project.splitChapterSuccess'))
-    // 切换到分镜处理页面
-    router.push(`/project/${projectName.value}/storyboard-process`)
-  } catch (error) {
-    ElMessage.error(t('project.splitChapterError'))
-  }
-}
 
 const fetchProjectInfo = async () => {
   if (!projectName.value) {

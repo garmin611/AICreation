@@ -87,9 +87,17 @@ TOOLS_BASE = [
                         "type": "object",
                         "description": "实体的新属性",
                         "properties": {
+                            "gender":{
+                                "type": "string",
+                                "description": "角色性别"
+                            },
                             "role": {
                                 "type": "string",
                                 "description": "角色职责"
+                            },
+                            "personality": {
+                                "type": "string",
+                                "description": "角色性格"
                             },
                             "description": {
                                 "type": "string",

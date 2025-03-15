@@ -1,4 +1,3 @@
-# 将原有的Project.vue内容复制到这里
 <template>
   <div class="project-container">
     <el-row :gutter="20">

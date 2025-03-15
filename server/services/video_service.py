@@ -1,156 +1,309 @@
 import logging
 import os
-from moviepy.editor import *
-from moviepy.video.fx.all import resize
+import time
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
-from .base_service import SingletonService
+from concurrent.futures import ThreadPoolExecutor,as_completed,wait
+from PIL import Image
+from moviepy.editor import ImageSequenceClip, AudioFileClip
+import subprocess
+import threading
+import tempfile
+import gc
+from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-class VideoService(SingletonService):
-    """视频生成服务（单例）"""
+class VideoService:
+    """视频生成服务）"""
     
-    def _initialize(self):
-        """初始化默认视频配置"""
+    def __init__(self):
         self.default_settings = {
-            'zoom_factor': 1.04,
-            'pan_intensity': 20,
-            'font_name': 'Arial-Unicode-ms',
-            'font_size': 24,
-            'resolution': (1920, 1080)
+            'resolution': (1920, 1080),
+            'fps': 24,
+         
+            'use_cuda': True,
+            'codec': 'h264_nvenc',
+            'batch_size': 5,
+            'temp_dir': None
         }
-        logger.info("VideoService initialized with default settings")
+        self.stop_flag = threading.Event()
+        self._check_hardware()
 
-    async def generate_video_async(self, chapter_path, video_settings=None):
-        """异步生成视频"""
-        with ThreadPoolExecutor() as executor:
-            future = executor.submit(
-                self.generate_video,
-                chapter_path,
-                video_settings
-            )
-            return future.result()
-
-    def generate_video(self, chapter_path, video_settings=None):
-        """生成视频主方法（支持多线程）"""
-        settings = {**self.default_settings, **(video_settings or {})}
-
+    def _check_hardware(self):
+        """检查硬件编码支持"""
         try:
-            clips = []
-            # 遍历排序后的子文件夹
+            result = subprocess.run(['ffmpeg', '-encoders'], capture_output=True, text=True)
+            self.cuda_available = 'h264_nvenc' in result.stdout
+     
+            if not self.cuda_available:
+                logger.warning("NVENC不可用，切换至CPU模式")
+                self.default_settings.update({
+                    'use_cuda': False,
+                    'codec': 'libx264',
+                    'threads': min(2, os.cpu_count()/1.5 or 4)
+                })
+        except Exception as e:
+            logger.error("硬件检测失败: %s", str(e))
+            self.cuda_available = False
+
+    def _load_resources(self, subdir_path: str) -> tuple:
+        """加载图片和音频资源"""
+        image_path = os.path.join(subdir_path, "image.png")
+        audio_path = os.path.join(subdir_path, "audio.mp3")
+
+        # 验证文件有效性
+        for path in [image_path, audio_path]:
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"文件不存在: {path}")
+            if os.path.getsize(path) < 1024:
+                raise ValueError(f"文件过小: {path}")
+
+        # 加载图片
+        with Image.open(image_path) as img:
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            image = img.resize(self.default_settings['resolution'], Image.LANCZOS)
+
+        # 加载音频
+        audio = AudioFileClip(audio_path)
+        return image, audio
+
+    def _process_segment(self, subdir: str,temp_dir:str, settings: Dict) -> Optional[str]:
+        """处理单个视频片段"""
+        logger.info("开始处理片段: %s", subdir)
+        temp_file = os.path.join(temp_dir, f"vid_{subdir}_{os.getpid()}.mp4")
+        start_time = time.time()
+        
+        try:
+            # 加载资源
+            image, audio = self._load_resources(
+                os.path.join(settings['chapter_path'], subdir)
+            )
+            duration = audio.duration
+            total_frames = int(duration * settings['fps'])
+            
+            # 生成帧数据
+            frames = []
+            for i in range(total_frames):
+                if self.stop_flag.is_set():
+                    break
+                
+                # 应用特效
+                frame = self._apply_effects(
+                    image.copy(), 
+                    i/settings['fps'], 
+                    duration, 
+                    settings
+                )
+                frames.append(np.array(frame))
+                frame.close()
+
+            # 写入临时文件
+            self._write_temp_video(frames, audio, temp_file, settings)
+            
+            logger.info(
+                "完成片段 %s | 耗时: %.1fs | 大小: %s",
+                subdir, 
+                time.time()-start_time,
+                self._format_size(os.path.getsize(temp_file))
+            )
+            return temp_file
+            
+        except Exception as e:
+            logger.error("处理失败 [%s]: %s", subdir, str(e))
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+            return None
+        finally:
+            # 释放资源
+            if 'image' in locals(): image.close()
+            if 'audio' in locals(): audio.close()
+            del frames
+            gc.collect()
+
+    def _write_temp_video(self, frames: list, audio: AudioFileClip, 
+                         output_path: str, settings: Dict):
+        """安全写入视频片段"""
+        with ImageSequenceClip(frames, fps=settings['fps']) as clip:
+            clip = clip.set_audio(audio)
+            
+            # 设置编码参数
+            ffmpeg_params = []
+            
+            if settings['use_cuda'] and self.cuda_available:
+                # GPU 相关参数
+                ffmpeg_params.extend([
+                    '-c:v', 'h264_nvenc',     # 明确指定NVENC编码器
+                    '-preset', 'medium',         # NVENC支持的预设：fast, medium, slow, hp, hq, bd, ll, llhq, llhp
+                    '-gpu', '0',
+                     
+            
+                ])
+            else:
+                # CPU 相关参数
+                ffmpeg_params.extend([
+                    '-c:v', 'libx264',
+                    '-preset', 'medium',
+                    '-crf', '23'
+                ])
+            
+            
+            clip.write_videofile(
+                output_path,
+                codec=None,                   # 让ffmpeg_params完全控制编码器
+                audio_codec='aac',
+                threads=settings['threads'],
+                ffmpeg_params=ffmpeg_params,
+                logger=None,
+                verbose=False
+            )
+
+    def generate_video(self, chapter_path: str, video_settings: Dict = None) -> str:
+        """生成视频主流程"""
+        self.stop_flag.clear()
+        final_settings = {**self.default_settings, **(video_settings or {})}
+        final_settings['chapter_path'] = chapter_path
+        output_path = os.path.join(chapter_path, "video.mp4")
+        temp_files = []
+        
+        try:
+            # 获取待处理片段列表
             subdirs = sorted([
                 d for d in os.listdir(chapter_path)
-                if os.path.isdir(os.path.join(chapter_path, d))
-            ], key=lambda x: int(x))  # 按数字顺序排序
+                if os.path.isdir(os.path.join(chapter_path, d)) and d.isdigit()
+            ], key=lambda x: int(x))
+            
+            if not subdirs:
+                raise ValueError("无有效视频片段")
 
-            # 使用线程池并行处理每个子文件夹
-            with ThreadPoolExecutor() as executor:
-                futures = [
-                    executor.submit(self._create_clip, os.path.join(chapter_path, subdir), settings)
-                    for subdir in subdirs
-                ]
-                clips = [future.result() for future in futures]
+    
 
+            logger.info("发现 %d 个待处理片段", len(subdirs))
 
-            # 检查每个片段是否有效
-            for clip in clips:
-                if clip is None:
-                    raise ValueError("One of the video clips is None")
-                if not hasattr(clip, 'get_frame'):
-                    raise ValueError(f"Invalid clip object: {clip}")
+            # 并行处理片段
+            with ThreadPoolExecutor(max_workers=final_settings['threads']) as executor:
+                futures = []
+                for batch in self._chunk_list(subdirs, final_settings['batch_size']):
+                    futures.extend(
+                        executor.submit(self._process_segment, subdir,chapter_path, final_settings)
+                        for subdir in batch
+                    )
 
-            # 合并视频片段
-            final_clip = concatenate_videoclips(clips, method="compose")
-            if final_clip is None or not hasattr(final_clip, 'get_frame'):
-                raise ValueError("Failed to concatenate clips: final_clip is invalid")
+                # 收集结果
+                for future in as_completed(futures):
+                    result = future.result()
+                    if result:
+                        temp_files.append(result)
+                        logger.info("进度: %d/%d", len(temp_files), len(subdirs))
 
+            # 合并临时文件
+            if not temp_files:
+                raise ValueError("没有生成有效视频片段")
+            return self._merge_videos(temp_files, output_path, final_settings)
 
+        except Exception as e:
+            logger.error("视频生成失败: %s", str(e))
+            raise
+        finally:
+            self._cleanup_temp_files(temp_files)
 
-            # 输出路径
-            output_path = os.path.join(chapter_path, "video.mp4")
-
-            logger.info("准备输出")
-            final_clip.write_videofile(
-                output_path,
-                fps=24,
-                threads=4
-            )
-            logger.info("输出完成")
+    def _merge_videos(self, temp_files: List[str], output_path: str, settings: Dict) -> str:
+        """合并视频片段"""
+        concat_list = os.path.join(os.path.dirname(output_path), "concat.txt")
+        
+        try:
+            # 生成合并列表，使用UTF-8编码写入
+            with open(concat_list, 'w', encoding='utf-8') as f:
+                for file in temp_files:
+                    file_path = os.path.abspath(file)
+                    # 替换反斜杠为正斜杠，避免转义问题
+                    file_path = file_path.replace('\\', '/')
+                    f.write(f"file '{file_path}'\n")
+            
+            # 构建FFmpeg命令
+            cmd = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_list,
+                '-c', 'copy',
+                '-movflags', '+faststart',
+                '-y', output_path
+            ]
+            if settings.get('use_cuda', False):
+                cmd[1:1] = ['-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda']
+                
+            # 执行命令
+            subprocess.run(cmd, check=True, capture_output=True)
+            logger.info("视频合并成功: %s", output_path)
             return output_path
-        except Exception as e:
-            logger.error(f"Video generation failed: {str(e)}")
-
+            
+        except subprocess.CalledProcessError as e:
+            # 根据系统编码解码错误信息
+            import locale
+            encoding = locale.getpreferredencoding()
+            error_msg = e.stderr.decode(encoding, errors='replace')
+            logger.error("合并失败: %s", error_msg)
             raise
+        finally:
+            if os.path.exists(concat_list):
+                os.remove(concat_list)
 
-    def _create_clip(self, subdir_path, settings):
-        audio_clip = None
+    def _apply_effects(self, image: Image.Image, time_val: float, 
+                      duration: float, settings: Dict) -> Image.Image:
+        """应用缩放和平移动效"""
         try:
-            # 加载资源文件
-            resources = {
-                'image': os.path.join(subdir_path, "image.png"),
-                'audio': os.path.join(subdir_path, "audio.mp3")
-            }
+            # 动态缩放计算
+            progress = min(time_val / duration, 1.0)
+            if progress < 0.3:
+                zoom = 1 + (settings['zoom_factor']-1) * (progress/0.3)
+            else:
+                zoom = settings['zoom_factor'] - (settings['zoom_factor']-1)*((progress-0.3)/0.7)
 
-            # 检查音频文件
-            if not os.path.exists(resources['audio']):
-                raise FileNotFoundError(f"音频文件不存在: {resources['audio']}")
-            if os.path.getsize(resources['audio']) == 0:
-                raise ValueError(f"音频文件为空: {resources['audio']}")
-
-            # 加载音频文件
-            audio_clip = AudioFileClip(resources['audio'])
-            if audio_clip.reader is None:
-                raise ValueError("音频文件加载失败：reader 为 None")
-            duration = audio_clip.duration
-
-            # 加载图片文件
-            img_clip = ImageClip(resources['image']).set_duration(duration)
-            img_clip = resize(img_clip, newsize=settings['resolution'])
-
-            # 应用动态效果
-            final_clip = self._apply_effects(img_clip, duration, settings)
-
-            # 合成最终片段
-            return CompositeVideoClip([final_clip]).set_audio(audio_clip)
+            # 缩放处理
+            new_size = (
+                int(settings['resolution'][0] * zoom),
+                int(settings['resolution'][1] * zoom)
+            )
+            with image.resize(new_size, Image.LANCZOS) as zoomed_img:
+                # 动态平移
+                offset = int(settings['pan_intensity'] * abs(np.sin(2 * time_val)))
+                left = max(0, (zoomed_img.width - settings['resolution'][0]) // 2 + offset)
+                top = max(0, (zoomed_img.height - settings['resolution'][1]) // 2)
+                left = min(left, zoomed_img.width - settings['resolution'][0])
+                top = min(top, zoomed_img.height - settings['resolution'][1])
+                
+                return zoomed_img.crop((
+                    left, top, 
+                    left + settings['resolution'][0], 
+                    top + settings['resolution'][1]
+                ))
         except Exception as e:
-            if audio_clip is not None:
-                audio_clip.close()
-            logger.error(f"创建视频片段失败: {str(e)}")
+            logger.error("特效处理失败: %s", str(e))
             raise
 
-    def _apply_effects(self, clip, duration, settings):
-        """应用动态效果"""
-        if clip is None:
-            raise ValueError("Input clip is None")
 
-        # 缩放效果
-        def zoom_effect(t):
-            if t < duration/3:
-                return 1 + (settings['zoom_factor']-1)*(t/(duration/3))
-            return settings['zoom_factor'] - (settings['zoom_factor']-1)*((t-duration/3)/(2*duration/3))
-        
-        # 平移效果
-        def pan_effect(get_frame, t):
-            img = get_frame(t)
-            if img is None:
-                # 如果 get_frame 返回 None，返回一个空帧或处理错误
-                return np.zeros((settings['resolution'][1], settings['resolution'][0], 3), dtype=np.uint8)
-            offset = int(settings['pan_intensity'] * abs(np.sin(0.5*t)))
-            return img[:, offset:offset+img.shape[1]-40]
-        
-        # 确保返回有效的视频片段
-        try:
-            final_clip = clip.resize(lambda t: zoom_effect(t)).fl(pan_effect)
-            if final_clip is None:
-                raise ValueError("Failed to apply effects")
-            return final_clip
-        except Exception as e:
-            logger.error(f"Failed to apply effects: {str(e)}")
-            raise
+    def _cleanup_temp_files(self, files: List[str]):
+        """清理临时文件"""
+        for f_path in files:
+            try:
+                if os.path.exists(f_path):
+                    os.remove(f_path)
+                    logger.debug("已清理: %s", f_path)
+            except Exception as e:
+                logger.warning("清理失败 %s: %s", f_path, str(e))
 
-    def _read_text(self, subdir_path):
-        """读取字幕文件"""
-        text_path = os.path.join(subdir_path, "span.txt")
-        with open(text_path, 'r', encoding='utf-8') as f:
-            return f.read().strip()
+    @staticmethod
+    def _chunk_list(items: List, size: int):
+        """列表分块"""
+        for i in range(0, len(items), size):
+            yield items[i:i + size]
+
+    @staticmethod
+    def _format_size(size_bytes: int) -> str:
+        """格式化文件大小"""
+        for unit in ('B', 'KB', 'MB', 'GB'):
+            if size_bytes < 1024:
+                return f"{size_bytes:.1f}{unit}"
+            size_bytes /= 1024
+        return f"{size_bytes:.1f}TB"

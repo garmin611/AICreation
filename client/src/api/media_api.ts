@@ -36,35 +36,19 @@ interface GenerationProgressResponse {
 
 export const mediaApi = {
   generateImages(params: GenerateImageParams) {
-    return request({
-      url: '/media/generate_images',
-      method: 'post',
-      data: params
-    })
+    return request.post('/media/generate_images', params)
   },
 
   generateAudio(params: GenerateAudioParams) {
-    return request({
-      url: '/media/generate-audio',
-      method: 'post',
-      data: params
-    })
+    return request.post('/media/generate-audio', params)
   },
 
   getProgress(taskId: string) {
-    return request<GenerationProgressResponse>({
-      url: '/media/progress',
-      method: 'get',
-      params: { task_id: taskId }
-    })
+    return request.get<GenerationProgressResponse>('/media/progress', { task_id: taskId })
   },
 
   cancelTask(taskId: string) {
-    return request({
-      url: '/media/cancel',
-      method: 'post',
-      params: { task_id: taskId }
-    })
+    return request.post('/media/cancel', { task_id: taskId })
   }
 }
 

@@ -6,6 +6,9 @@ import signal
 import edge_tts
 import traceback
 from .base_service import SingletonService
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AudioService(SingletonService):
     def _initialize(self):
@@ -24,14 +27,7 @@ class AudioService(SingletonService):
             self.tasks[task_id]['cancelled'] = True
         print("音频生成任务已取消")
 
-    def _format_voice_name(self, voice: str) -> str:
-        """格式化语音名称为edge-tts需要的格式"""
-        if not voice:
-            return "zh-CN-XiaoxiaoNeural"
-        if voice.startswith("Microsoft Server Speech"):
-            return voice
-        # 假设传入的是简单格式，如 "zh-CN-XiaoxiaoNeural"
-        return voice
+ 
 
     async def generate_audio(self, prompts: List[str], output_dirs: List[str],
                            voice: str = "zh-CN-XiaoxiaoNeural",
@@ -40,9 +36,7 @@ class AudioService(SingletonService):
         if len(prompts) != len(output_dirs):
             raise ValueError("prompts和output_dirs的长度必须相同")
             
-        # 格式化语音名称
-        voice = self._format_voice_name(voice)
-            
+        logger.info(f"使用语音：{voice}")
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         task_id = f'audio_{timestamp}'
         

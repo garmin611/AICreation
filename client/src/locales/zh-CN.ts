@@ -54,6 +54,7 @@ export default {
     sceneList: '分镜列表',
     spanContent: '分割片段',
     sceneDescription: '场景描述',
+    baseScene:'基础场景',
     prompt: '提示词',
     image: '图片',
     voicing: '配音',
@@ -73,7 +74,7 @@ export default {
     audioSettings: '音频设置',
     speakingRate: '语速',
     chapterList: '章节列表',
-    convertAllPrompts: '转换所有提示词',
+    convertSelectedPrompts: '转换选中提示词',
     saveAll: '保存所有修改',
     styleRealistic: '写实风格',
     styleAnime: '动漫风格',
@@ -89,6 +90,7 @@ export default {
   projectMain: {
     textCreation: '文本创作',
     characterLibrary: '角色库',
+    sceneLibrary: '场景库',
     storyboardProcess: '分镜处理',
     videoOutput: '视频输出'
   },
@@ -108,7 +110,7 @@ export default {
     extractCharacters: '提取角色',
     extractSuccess: '角色提取成功'
   },
-  character: {
+  entity: {
     entityName: '实体名称',
     role: '职责',
     description: '描述',
@@ -126,14 +128,15 @@ export default {
     lockConfirmContent: '锁定后将无法自动更新实体的信息',
     confirm: '确定',
     cancel: '取消',
-    delete: '删除角色',
-    deleteConfirm: '确定要删除该角色吗？',
-    deleteSuccess: '角色删除成功',
-    deleteError: '角色删除失败',
+    delete: '删除实体',
+    deleteConfirm: '确定要删除该实体吗？',
+    deleteSuccess: '实体删除成功',
+    deleteError: '实体删除失败',
     operationFailed: '操作失败'
   },
   menu: {
-    characterLibrary: '角色库'
+    characterLibrary: '角色库',
+    sceneLibrary: '场景库',
   },
   success: {
     saved: '保存成功',

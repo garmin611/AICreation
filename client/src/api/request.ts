@@ -9,6 +9,18 @@ const service = axios.create({
     baseURL: "http://localhost:5000"
 })
 
+// 请求参数接口
+export interface RequestOptions extends Omit<AxiosRequestConfig, 'url' | 'method'> {
+    headers?: Record<string, string>
+    raw?: boolean // 是否返回完整响应
+}
+
+// 流式请求参数接口
+export interface StreamRequestOptions extends RequestOptions {
+    signal?: AbortSignal
+}
+
+// API响应类型
 export interface ApiResponse<T = any> {
     status: string
     data: T
@@ -18,67 +30,101 @@ export interface ApiResponse<T = any> {
 // 响应拦截器
 service.interceptors.response.use(
     (res: AxiosResponse<ApiResponse>) => {
-        
-        const { status, data, message: msg } = res.data
-        
+        const { status, data, message: msg } = res.data;
+        const config = res.config as AxiosRequestConfig & RequestOptions;
+
         if (status === 'success') {
-            // if (msg) {
-            //     ElMessage.success(msg)
-            // }
-            return data
+            // 如果设置了raw，返回完整响应，否则只返回data
+            return Promise.resolve(config.raw ? res.data : data);
         } else {
-            ElMessage.error(msg || NETWORK_ERROR)
-            return Promise.reject(msg || NETWORK_ERROR)
+            // 如果后端返回了错误信息，显示后端的信息
+            ElMessage.error(msg || NETWORK_ERROR);
+            return Promise.reject(res.data); // 返回完整的响应数据
         }
     },
     (error) => {
-        // 处理401等错误
-        if (error.response?.status === 401) {
-            sessionStorage.removeItem('jwtToken')
-            ElMessage.error('登录已过期，请重新登录')
+        if (error.response) {
+            // 如果后端返回了错误响应（如 500），显示后端的具体错误信息
+            const errorMessage = error.response.data?.message || error.message;
+            ElMessage.error(errorMessage || NETWORK_ERROR);
         } else {
-            ElMessage.error(error.message || NETWORK_ERROR)
+            // 如果是网络错误或其他错误，显示通用错误信息
+            ElMessage.error(error.message || NETWORK_ERROR);
         }
-        return Promise.reject(error)
+        return Promise.reject(error);
     }
-)
+);
 
-// 核心请求函数
-export interface RequestOptions extends AxiosRequestConfig {
-  url: string
-  method?: string
-  data?: any
-  params?: any
-  headers?: Record<string, string>
+// HTTP请求方法
+class HttpClient {
+    // GET请求
+    get<T, O extends RequestOptions = RequestOptions>(url: string, params: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+        return service({
+            url,
+            method: 'get',
+            params,
+            ...options
+        });
+    }
+
+    // POST请求
+    post<T, O extends RequestOptions = RequestOptions>(url: string, data: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+        return service({
+            url,
+            method: 'post',
+            data,
+            ...options
+        });
+    }
+
+    // PUT请求
+    put<T, O extends RequestOptions = RequestOptions>(url: string, data: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+        return service({
+            url,
+            method: 'put',
+            data,
+            ...options
+        });
+    }
+
+    // DELETE请求
+    delete<T, O extends RequestOptions = RequestOptions>(url: string, params: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+        return service({
+            url,
+            method: 'delete',
+            params,
+            ...options
+        });
+    }
+
+    // PATCH请求
+    patch<T, O extends RequestOptions = RequestOptions>(url: string, data: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+        return service({
+            url,
+            method: 'patch',
+            data,
+            ...options
+        });
+    }
+
+    // 流式请求
+    stream<T = ReadableStream>(url: string, data?: any, options: StreamRequestOptions = {}): Promise<T> {
+        return fetch(`${service.defaults.baseURL}${url}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream',
+                ...options.headers
+            },
+            body: data ? JSON.stringify(data) : undefined,
+            signal: options.signal
+        }).then(response => {
+            if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+            if (!response.body) throw new Error('无效的流式响应');
+            return response.body as unknown as T;
+        });
+    }
 }
 
-const streamRequest = <T = any>(options: RequestOptions & { signal?: AbortSignal }): Promise<T | ReadableStream> => {
-  return fetch(`${service.defaults.baseURL}${options.url}`, {
-    method: (options.method || 'POST').toUpperCase(),
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
-      ...options.headers
-    },
-    body: options.data ? JSON.stringify(options.data) : undefined,
-    signal: options.signal  // 添加signal参数
-  }).then(response => {
-    if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
-    if (!response.body) throw new Error('无效的流式响应');
-    return response.body;
-  });
-}
-const request = <T = any>(options: RequestOptions): Promise<T> =>  {
-  options.method = options.method || 'get';
-
-   
-  // 普通请求处理
-  if (options.method.toLowerCase() === 'get' && options.data && !options.params) {
-    options.params = options.data;
-  }
-  return service(options);
-};
-
-export type RequestFunction = typeof request
-export default request
-export { streamRequest }
+const request = new HttpClient();
+export default request;

@@ -13,18 +13,10 @@
         <!-- 第一排：章节选择 -->
         <el-row class="settings-row">
           <el-col :span="24">
-            <el-select 
-              v-model="chapterName" 
-              :placeholder="t('storyboardProcess.chapterList')" 
-              class="chapter-select"
-              @change="handleChapterChange"
-            >
-              <el-option
-                v-for="chapter in chapterList"
-                :key="chapter.value"
-                :label="chapter.label"
-                :value="chapter.value"
-              />
+            <el-select v-model="chapterName" :placeholder="t('storyboardProcess.chapterList')" class="chapter-select"
+                       @change="handleChapterChange">
+              <el-option v-for="chapter in chapterList" :key="chapter.value" :label="chapter.label"
+                         :value="chapter.value" />
             </el-select>
           </el-col>
         </el-row>
@@ -38,37 +30,24 @@
                 <el-col :span="8">
                   <div class="input-with-label">
                     <span class="input-label">{{ t('storyboardProcess.imageWidth') }}</span>
-                    <el-input-number
-                      v-model="imageSettings.width"
-                      :min="64"
-                      :max="2048"
-                      :step="64"
-                      controls-position="right"
-                    />
+                    <el-input-number v-model="imageSettings.width" :min="64" :max="2048" :step="64"
+                                     controls-position="right" />
                   </div>
                 </el-col>
                 <el-col :span="8">
                   <div class="input-with-label">
                     <span class="input-label">{{ t('storyboardProcess.imageHeight') }}</span>
-                    <el-input-number
-                      v-model="imageSettings.height"
-                      :min="64"
-                      :max="2048"
-                      :step="64"
-                      controls-position="right"
-                    />
+                    <el-input-number v-model="imageSettings.height" :min="64" :max="2048" :step="64"
+                                     controls-position="right" />
                   </div>
                 </el-col>
                 <el-col :span="8">
                   <div class="input-with-label">
                     <span class="input-label">{{ t('storyboardProcess.imageStyle') }}</span>
                     <el-select v-model="imageSettings.style" class="style-select">
-                      <el-option
-                        v-for="style in styleList"
-                        :key="style.value"
-                        :label="t(`storyboardProcess.style${style.value.charAt(0).toUpperCase() + style.value.slice(1)}`)"
-                        :value="style.value"
-                      />
+                      <el-option v-for="style in styleList" :key="style.value"
+                                 :label="t(`storyboardProcess.style${style.value.charAt(0).toUpperCase() + style.value.slice(1)}`)"
+                                 :value="style.value" />
                     </el-select>
                   </div>
                 </el-col>
@@ -86,26 +65,17 @@
                 <el-col :span="16">
                   <div class="input-with-label">
                     <span class="input-label">{{ t('storyboardProcess.selectVoice') }}</span>
-                    <el-select v-model="audioSettings.narrator" :placeholder="t('storyboardProcess.selectVoice')" class="narrator-select">
-                      <el-option
-                        v-for="voice in voiceList"
-                        :key="voice.value"
-                        :label="voice.label"
-                        :value="voice.value"
-                      />
+                    <el-select v-model="audioSettings.narrator" :placeholder="t('storyboardProcess.selectVoice')"
+                               class="narrator-select">
+                      <el-option v-for="voice in voiceList" :key="voice.value" :label="voice.label" :value="voice.value" />
                     </el-select>
                   </div>
                 </el-col>
                 <el-col :span="8">
                   <div class="input-with-label">
                     <span class="input-label">{{ t('storyboardProcess.speakingRate') }}</span>
-                    <el-input-number
-                      v-model="audioSettings.speakingRate"
-                      :min="-50"
-                      :max="50"
-                      :step="1"
-                      controls-position="right"
-                    />
+                    <el-input-number v-model="audioSettings.speakingRate" :min="-50" :max="50" :step="1"
+                                     controls-position="right" />
                   </div>
                 </el-col>
               </el-row>
@@ -117,23 +87,16 @@
         <el-row :gutter="24" class="settings-row">
           <el-col :span="24">
             <div class="action-buttons">
-              <el-button type="primary" @click="convertAllPrompts">
-                {{ t('storyboardProcess.convertAllPrompts') }}
+              <el-button type="primary" @click="convertSelectedPrompts(selectedRows)" :loading="loading"
+                         :disabled="loading || selectedRows.length === 0">
+                {{ t('storyboardProcess.convertSelectedPrompts') }}
               </el-button>
-              <el-button 
-                type="primary" 
-                @click="generateAllImages" 
-                :loading="generating" 
-                :disabled="generatingAllAudio || selectedRows.length === 0"
-              >
+              <el-button type="primary" @click="generateSelectedImages(selectedRows)" :loading="generating"
+                         :disabled="generatingAllAudio || selectedRows.length === 0">
                 {{ t('storyboardProcess.generateSelectedImages') }}
               </el-button>
-              <el-button 
-                type="primary" 
-                @click="generateAllAudio" 
-                :loading="generatingAllAudio" 
-                :disabled="generating || selectedRows.length === 0"
-              >
+              <el-button type="primary" @click="generateSelectedAudio(selectedRows)" :loading="generatingAllAudio"
+                         :disabled="generating || selectedRows.length === 0">
                 {{ t('storyboardProcess.generateSelectedAudio') }}
               </el-button>
               <el-button type="primary" @click="handleSaveAll" :loading="saving">
@@ -144,19 +107,17 @@
         </el-row>
 
         <!-- 第五排：进度显示 -->
-        <el-row v-show="(generating || generatingAllAudio) && progress.taskId" :gutter="24" class="settings-row progress-row">
+        <el-row v-show="(generating || generatingAllAudio) && progress.taskId" :gutter="24"
+                class="settings-row progress-row">
           <el-col :span="24">
             <div class="settings-group">
               <div class="settings-title">{{ t('storyboardProcess.generationProgress') }}</div>
               <div class="progress-container">
                 <div class="progress-with-button">
-                  <el-progress 
-                    :percentage="Math.floor((progress.current / progress.total) * 100)" 
-                    :format="() => `${progress.current}/${progress.total}`"
-                    :status="progress.status === 'error' ? 'exception' : progress.status === 'completed' ? 'success' : ''"
-                    :indeterminate="progress.status === 'running' && progress.current === 0"
-                    :duration="1"
-                  />
+                  <el-progress :percentage="Math.floor((progress.current / progress.total) * 100)"
+                               :format="() => `${progress.current}/${progress.total}`"
+                               :status="progress.status === 'error' ? 'exception' : progress.status === 'completed' ? 'success' : ''"
+                               :indeterminate="progress.status === 'running' && progress.current === 0" :duration="1" />
                   <el-button type="danger" @click="stopGeneration" style="margin-left: 10px">
                     {{ t('storyboardProcess.stopGeneration') }}
                   </el-button>
@@ -166,115 +127,72 @@
           </el-col>
         </el-row>
       </div>
-      
-      <el-table 
-        ref="tableRef"
-        :data="currentPageData" 
-        style="width: 100%" 
-        v-loading="loading" 
-        @selection-change="handleSelectionChange"
-        @select-all="handleSelectAll"
-        row-key="id"
-      >
-        <el-table-column 
-          type="selection" 
-          width="55" 
-          align="center"
-        />
+
+      <el-table ref="tableRef" :data="currentPageData" style="width: 100%" v-loading="loading"
+                @selection-change="handleSelectionChange" @select-all="handleSelectAll" row-key="id">
+        <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="#" width="60" align="center">
           <template #default="{row}">
             {{ row.id }}
           </template>
         </el-table-column>
-        
+
         <el-table-column :label="t('storyboardProcess.spanContent')" min-width="240" align="center">
           <template #default="{ row }">
             <div class="text-cell">
-              <el-input
-                v-model="row.span"
-                type="textarea"
-                :rows="4"
-                :placeholder="t('storyboardProcess.spanContent')"
-                @input="handleSceneChange(row)"
-              />
+              <el-input v-model="row.span" type="textarea" :rows="4" :placeholder="t('storyboardProcess.spanContent')"
+                        @input="handleSceneChange(row)" />
               <div class="button-group">
-                <el-button
-                  type="primary"
-                  size="small"
-                  @click="generateAudio(row)"
-                  :loading="generatingAudioScenes.has(row.id)"
-                  :disabled="generating || generatingAllAudio"
-                >
+                <el-button type="primary" size="small" @click="generateSelectedAudio([row])"
+                           :loading="generatingAudioScenes.has(row.id)" :disabled="generating || generatingAllAudio">
                   {{ t('storyboardProcess.generateAudio') }}
                 </el-button>
               </div>
             </div>
           </template>
         </el-table-column>
-        
+
         <el-table-column :label="t('storyboardProcess.sceneDescription')" min-width="300" align="center">
           <template #default="{ row }">
             <div class="text-cell">
-              <el-input
-                v-model="row.scene"
-                type="textarea"
-                :rows="4"
-                resize="none"
-                :placeholder="t('storyboardProcess.sceneDescription')"
-                @input="handleSceneChange(row)"
-              />
-              <div class="button-group">
-                <el-button 
-                  v-if="row.scene"
-                  size="small"
-                  type="primary"
-                  :loading="row.translating"
-                  @click="handleTranslatePrompt(row)"
-                >
+              <el-input v-model="row.scene" type="textarea" :rows="4" resize="none"
+                        :placeholder="t('storyboardProcess.sceneDescription')" @input="handleSceneChange(row)" />
+
+              <el-input v-model="row.base_scene" @input="handleSceneChange(row)">
+                <template #prepend>
+                  <i>{{ t('storyboardProcess.baseScene') }}</i>
+                </template>
+              </el-input>
+              <div class=" button-group">
+                <el-button v-if="row.scene" size="small" type="primary" :loading="row.translating"
+                           @click="convertSelectedPrompts([row])">
                   {{ t('storyboardProcess.convertToPrompt') }}
                 </el-button>
               </div>
             </div>
           </template>
         </el-table-column>
-        
+
         <el-table-column :label="t('storyboardProcess.prompt')" min-width="200" align="center">
           <template #default="{ row }">
             <div class="text-cell">
-              <el-input
-                v-model="row.prompt"
-                type="textarea"
-                :rows="4"
-                :placeholder="t('storyboardProcess.prompt')"
-                @input="handleSceneChange(row)"
-              />
+              <el-input v-model="row.prompt" type="textarea" :rows="4" :placeholder="t('storyboardProcess.prompt')"
+                        @input="handleSceneChange(row)" />
               <div class="button-group">
-                <el-button 
-                  type="primary" 
-                  size="small"
-                  @click="generateImage(row)"
-                  :loading="generatingScenes.has(row.id)"
-                  :disabled="generating"
-                >
+                <el-button type="primary" size="small" @click="generateSelectedImages([row])"
+                           :loading="generatingScenes.has(row.id)" :disabled="generating">
                   {{ t('storyboardProcess.generateImage') }}
                 </el-button>
               </div>
             </div>
           </template>
         </el-table-column>
-        
+
         <el-table-column :label="t('storyboardProcess.image')" width="200" align="center">
           <template #default="{ row }">
             <div class="image-cell">
-              <el-image
-                v-if="row.image"
-                :src="row.image"
-                fit="contain"
-                class="preview-image"
-                :preview-src-list="[row.image]"
-                :initial-index="0"
-                preview-teleported
-              >
+              <el-image v-if="row.image" :src="row.image" fit="contain" class="preview-image"
+                        :preview-src-list="[row.image]" :initial-index="0" preview-teleported>
                 <template #error>
                   <div class="no-image">
                     {{ t('common.loadError') }}
@@ -287,17 +205,11 @@
             </div>
           </template>
         </el-table-column>
-        
+
         <el-table-column :label="t('storyboardProcess.voicing')" width="200" align="center">
           <template #default="{ row }">
             <div class="audio-cell">
-              <audio
-                v-if="row.audio"
-                :src="row.audio"
-                controls
-                class="audio-player"
-                :key="row.audio"
-              >
+              <audio v-if="row.audio" :src="row.audio" controls class="audio-player" :key="row.audio">
                 <source :src="row.audio" type="audio/mpeg">
                 {{ t('storyboardProcess.audioNotSupported') }}
               </audio>
@@ -308,17 +220,11 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10]"
-          :total="total"
-          layout="prev, pager, next"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10]" :total="total"
+                       layout="prev, pager, next" @size-change="handleSizeChange"
+                       @current-change="handleCurrentChange" />
       </div>
     </el-card>
   </div>
@@ -332,6 +238,7 @@ import { ElMessage, ElTable } from 'element-plus'
 import { chapterApi } from '@/api/chapter_api'
 import { mediaApi } from '@/api/media_api'
 import { getResourcePath } from '@/utils/resourcePath'
+import voices from '@/utils/voices'
 
 interface ImageSettings {
   width: number
@@ -347,6 +254,7 @@ interface AudioSettings {
 interface Scene {
   id: number    // 添加序号字段
   span: string
+  base_scene:string
   scene: string
   prompt: string
   translating: boolean
@@ -386,8 +294,6 @@ const styleList = ref([
 
 // 音频设置
 const voiceList = ref([
-  { label: '配音1', value: 'voice1' },
-  { label: '配音2', value: 'voice2' }
 ])
 
 // 获取章节列表
@@ -427,37 +333,7 @@ const progress = ref({
 })
 
 
-// 批量操作方法
-const convertAllPrompts = async () => {
-  try {
-    loading.value = true
-    // 过滤出有场景描述但没有提示词的场景
-    const scenesToConvert = sceneList.value.filter(row => row.scene && !row.prompt)
-    if (scenesToConvert.length === 0) {
-      ElMessage.info(t('common.noDataToProcess'))
-      return
-    }
 
-    // 获取所有需要转换的场景描述
-    const descriptions = scenesToConvert.map(row => row.scene)
-    
-    // 批量转换
-    const results = await chapterApi.translatePrompt(projectName.value, descriptions)
-    
-    // 更新场景的提示词
-    scenesToConvert.forEach((row:Scene, index) => {
-      row.prompt = results[index]
-      row.modified = true
-    })
-    
-    ElMessage.success(t('common.success'))
-  } catch (error) {
-    ElMessage.error(t('common.error'))
-    console.error('批量转换提示词失败:', error)
-  } finally {
-    loading.value = false
-  }
-}
 
 const generating = ref(false)  // 用于生成所有图片按钮的loading状态
 const generatingAllAudio = ref(false)  // 用于生成所有音频按钮的loading状态
@@ -579,50 +455,50 @@ const checkGenerationProgress = async () => {
 }
 
 // 生成单个图片
-const generateImage = async (row: Scene) => {
-  if (!row.prompt) {
-    ElMessage.warning(t('storyboardProcess.noPrompt'))
-    return
-  }
+// const generateImage = async (row: Scene) => {
+//   if (!row.prompt) {
+//     ElMessage.warning(t('storyboardProcess.noPrompt'))
+//     return
+//   }
 
-  try {
-    generatingScenes.value.add(row.id)
-    const params = {
-      project_name: projectName.value,
-      chapter_name: chapterName.value,
-      imageSettings: imageSettings.value,
-      prompts: [{
-        id: row.id,
-        prompt: row.prompt
-      }]
-    }
+//   try {
+//     generatingScenes.value.add(row.id)
+//     const params = {
+//       project_name: projectName.value,
+//       chapter_name: chapterName.value,
+//       imageSettings: imageSettings.value,
+//       prompts: [{
+//         id: row.id,
+//         prompt: row.prompt
+//       }]
+//     }
     
-    const data = await mediaApi.generateImages(params)
+//     const data = await mediaApi.generateImages(params)
     
-    // 设置进度信息
-    progress.value.taskId = data.task_id
-    progress.value.total = data.total
-    progress.value.current = 0
-    progress.value.status = data.status
-    progress.value.errors = data.errors || []
-    generating.value = true
+//     // 设置进度信息
+//     progress.value.taskId = data.task_id
+//     progress.value.total = data.total
+//     progress.value.current = 0
+//     progress.value.status = data.status
+//     progress.value.errors = data.errors || []
+//     generating.value = true
     
-    // 开始定时检查进度
-    if (progressTimer) clearInterval(progressTimer)
-    progressTimer = setInterval(checkGenerationProgress, 1000)
+//     // 开始定时检查进度
+//     if (progressTimer) clearInterval(progressTimer)
+//     progressTimer = setInterval(checkGenerationProgress, 1000)
     
-  } catch (error) {
-    console.error('Failed to generate image:', error)
-    ElMessage.error(t('common.operationFailed'))
-    generatingScenes.value.delete(row.id)
-    generating.value = false
-    resetProgress()
-  }
-}
+//   } catch (error) {
+//     console.error('Failed to generate image:', error)
+//     ElMessage.error(t('common.operationFailed'))
+//     generatingScenes.value.delete(row.id)
+//     generating.value = false
+//     resetProgress()
+//   }
+// }
 
 // 添加选中行的状态
 const selectedRows = ref<Scene[]>([])
-const isAllSelected = ref(false)  // 新增：用于跟踪是否全选
+const isAllSelected = ref(false)  // 用于跟踪是否全选
 
 // 全选状态的计算属性
 const allChecked = computed({
@@ -688,14 +564,51 @@ const handleSizeChange = (val: number) => {
   currentPage.value = 1
 }
 
+// 批量操作方法
+const convertSelectedPrompts = async (selectedRows:Scene[]) => {
+  try {
+    if (selectedRows.length === 0) {
+      ElMessage.warning(t('storyboardProcess.noSelection'))
+      return
+    }
+  
+    loading.value = true
+    
+    const scenesToConvert = selectedRows.filter(row => row.scene)
+    if (scenesToConvert.length === 0) {
+
+      return
+    }
+
+    // 获取所有需要转换的场景描述
+    const descriptions = scenesToConvert.map(row =>row.base_scene+","+row.scene)
+    
+    // 批量转换
+    const results = await chapterApi.translatePrompt(projectName.value, descriptions)
+    
+    // 更新场景的提示词
+    scenesToConvert.forEach((row:Scene, index) => {
+      row.prompt = results[index]
+      row.modified = true
+    })
+    
+    ElMessage.success(t('common.success'))
+  } catch (error) {
+    ElMessage.error(t('common.error'))
+    console.error('批量转换提示词失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
 // 生成图片
-const generateAllImages = async () => {
-  if (selectedRows.value.length === 0) {
+const generateSelectedImages = async (selectedRows:Scene[]) => {
+  if (selectedRows.length === 0) {
     ElMessage.warning(t('storyboardProcess.noSelection'))
     return
   }
 
-  const scenes = selectedRows.value.filter(scene => scene.prompt)
+  const scenes = selectedRows.filter(scene => scene.prompt)
   if (scenes.length === 0) {
     ElMessage.warning(t('storyboardProcess.noPrompts'))
     return
@@ -742,13 +655,13 @@ const generateAllImages = async () => {
 }
 
 // 生成音频
-const generateAllAudio = async () => {
-  if (selectedRows.value.length === 0) {
+const generateSelectedAudio = async (selectedRows:Scene[]) => {
+  if (selectedRows.length === 0) {
     ElMessage.warning(t('storyboardProcess.noSelection'))
     return
   }
 
-  const scenes = selectedRows.value.filter(scene => scene.span)
+  const scenes = selectedRows.filter(scene => scene.span)
   if (scenes.length === 0) {
     ElMessage.warning(t('storyboardProcess.noContent'))
     return
@@ -788,48 +701,49 @@ const generateAllAudio = async () => {
   }
 }
 
-// 生成单个音频
-const generateAudio = async (row: Scene) => {
-  if (!row.span) {
-    ElMessage.warning(t('storyboardProcess.noContent'))
-    return
-  }
 
-  try {
-    generatingAudioScenes.value.add(row.id)
-    generatingAllAudio.value = true  // 添加这行来显示进度条
-    const params = {
-      project_name: projectName.value,
-      chapter_name: chapterName.value,
-      audioSettings: {
-        voice: audioSettings.value.narrator,
-        rate: `${audioSettings.value.speakingRate}%`
-      },
-      prompts: [{
-        id: row.id,
-        prompt: row.span
-      }]
-    }
+// 生成单个音频
+// const generateAudio = async (row: Scene) => {
+//   if (!row.span) {
+//     ElMessage.warning(t('storyboardProcess.noContent'))
+//     return
+//   }
+
+//   try {
+//     generatingAudioScenes.value.add(row.id)
+//     generatingAllAudio.value = true  // 添加这行来显示进度条
+//     const params = {
+//       project_name: projectName.value,
+//       chapter_name: chapterName.value,
+//       audioSettings: {
+//         voice: audioSettings.value.narrator,
+//         rate: audioSettings.value.speakingRate >= 0 ? `+${audioSettings.value.speakingRate}%` : `${audioSettings.value.speakingRate}%`
+//       },
+//       prompts: [{
+//         id: row.id,
+//         prompt: row.span
+//       }]
+//     }
     
-    const data = await mediaApi.generateAudio(params)
-    progress.value.taskId = data.task_id
-    progress.value.total = data.total
-    progress.value.current = 0
-    progress.value.status = data.status
-    progress.value.errors = data.errors || []
+//     const data = await mediaApi.generateAudio(params)
+//     progress.value.taskId = data.task_id
+//     progress.value.total = data.total
+//     progress.value.current = 0
+//     progress.value.status = data.status
+//     progress.value.errors = data.errors || []
     
-    // 开始定时检查进度
-    if (progressTimer) clearInterval(progressTimer)
-    progressTimer = setInterval(checkGenerationProgress, 1000)
+//     // 开始定时检查进度
+//     if (progressTimer) clearInterval(progressTimer)
+//     progressTimer = setInterval(checkGenerationProgress, 1000)
     
-  } catch (error) {
-    console.error('Failed to generate audio:', error)
-    ElMessage.error(t('common.operationFailed'))
-    generatingAudioScenes.value.delete(row.id)
-    generatingAllAudio.value = false  // 添加这行来重置状态
-    resetProgress()
-  }
-}
+//   } catch (error) {
+//     console.error('Failed to generate audio:', error)
+//     ElMessage.error(t('common.operationFailed'))
+//     generatingAudioScenes.value.delete(row.id)
+//     generatingAllAudio.value = false  // 添加这行来重置状态
+//     resetProgress()
+//   }
+// }
 
 const stopGeneration = async () => {
   try {
@@ -897,6 +811,7 @@ const fetchSceneList = async () => {
     if (data) {
       sceneList.value = data.map((scene: any) => ({
         id: scene.id,
+        base_scene:scene.base_scene,
         scene: scene.scene,
         span: scene.content,
         prompt: scene.prompt,
@@ -923,21 +838,21 @@ const handleSceneChange = (row: Scene) => {
 }
 
 // 转换为提示词
-const handleTranslatePrompt = async (row: Scene) => {
-  try {
-    row.translating = true
+// const handleTranslatePrompt = async (row: Scene) => {
+//   try {
+//     row.translating = true
 
-    const prompt = await chapterApi.translatePrompt(projectName.value, [row.scene])
-    row.prompt = prompt[0]
-    row.modified = true
-    ElMessage.success('转换成功')
-  } catch (error: any) {
-    ElMessage.error(error.message || '转换失败')
-    console.error('转换提示词失败:', error)
-  } finally {
-    row.translating = false
-  }
-}
+//     const prompt = await chapterApi.translatePrompt(projectName.value, [row.base_scene+","+row.scene])
+//     row.prompt = prompt[0]
+//     row.modified = true
+//     ElMessage.success('转换成功')
+//   } catch (error: any) {
+//     ElMessage.error(error.message || '转换失败')
+//     console.error('转换提示词失败:', error)
+//   } finally {
+//     row.translating = false
+//   }
+// }
 
 // 保存所有修改
 const handleSaveAll = async () => {
@@ -966,17 +881,6 @@ const handleSaveAll = async () => {
   }
 }
 
-// 保存场景描述
-const saveScene = (row: Scene) => {
-  // TODO: 实现保存场景描述的功能
-  ElMessage.success(t('common.saveSuccess'))
-}
-
-// 保存提示词
-const savePrompt = (row: Scene) => {
-  // TODO: 实现保存提示词的功能
-  ElMessage.success(t('common.saveSuccess'))
-}
 
 const saving = ref(false)
 
@@ -988,6 +892,10 @@ const tableRef = ref<InstanceType<typeof ElTable>>()
 
 onMounted(() => {
   console.log(projectName.value)
+  for(const voice in voices){
+    voiceList.value.push({ label: voice+" - "+voices[voice], value: voice })
+  }
+  audioSettings.value.narrator=voiceList.value[0].value
   fetchChapterList() // 组件加载时获取章节列表
 })
 

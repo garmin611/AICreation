@@ -41,6 +41,8 @@
       v-model="content"
       type="textarea"
       :rows="20"
+      :maxlength="9999"
+      :show-word-limit="true"
       :placeholder="inputPlaceholder"
       resize="none"
       ref="contentInput"
@@ -124,7 +126,7 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 const contentInput = ref(null)
 
 // 监听内容变化，5秒后触发自动保存
-watch(content,async (newValue) => {
+watch(content,async (_) => {
   if (autoSaveTimer) {
     clearTimeout(autoSaveTimer)
   }
@@ -241,6 +243,7 @@ const handleSave = async (showMessage = true) => {
 
 const abortController = ref<AbortController | null>(null)//用于中断流式输出
 
+
 // 使用AI生成或续写文本内容
 const handleGenerate = async () => {
   try {
@@ -273,7 +276,8 @@ const handleGenerate = async () => {
     let buffer = ''
     let eventBuffer = ''
 
-    let breakLine = 0;
+ 
+    let lastBreakLine = false;//检测是否刚刚换行
 
     const processEvent = (eventData: string) => {
       const dataLines = eventData.split('\n')
@@ -292,15 +296,16 @@ const handleGenerate = async () => {
         .replace(/\\'/g, "'")
         .replace(/\\"/g, '"')
         .trim()
+      
 
       if (contentData && contentData !== '[DONE]') {
         content.value += contentData
-        breakLine = 0
+        lastBreakLine = false;
       } else {
-        breakLine++
-        if (breakLine >= 2) {
+        
+        if (!lastBreakLine) {
           content.value += '\n'//识别换行
-          breakLine = 0
+          lastBreakLine = true
         }
       }
     }
@@ -365,10 +370,10 @@ const handleExtractCharacters = async () => {
   extracting.value = true
   try {
     const res = await chapterApi.extractCharacters(projectName.value, currentChapter.value)
-    if (res.status === 'success') {
+    if (res) {
       ElMessage.success(t('textCreation.extractSuccess'))
       // 这里可以根据需要处理提取到的角色信息，比如显示在对话框中
-      console.log('提取到的角色信息：', res.data)
+      console.log('提取到的角色信息：', res)
     } 
   } catch (error) {
     console.error('提取角色失败：', error)

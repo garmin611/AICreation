@@ -18,12 +18,13 @@
 ### 项目文件结构
 
 ```
+
 client/                 # 前端项目根目录
 ├── src/               # 源代码目录
 │   ├── api/          # API 接口目录
 │   │   ├── project_api.ts # 项目相关 API
 │   │   ├── chapter_api.ts # 章节相关 API
-│   │   ├── character_api.ts # 角色相关 API
+│   │   ├── entity_api.ts # 实体相关 API
 │   │   ├── media_api.ts # 媒体生成相关 API
 │   │   └── request.ts # 请求封装，支持普通请求（Axios）和流式请求（Fetch API）处理
 │   ├── components/    # 组件目录
@@ -44,6 +45,8 @@ client/                 # 前端项目根目录
 │   │   ├── ProjectMain/ # 项目详情页面
 │   │   │   ├── index.vue # 项目主页面
 │   │   │   ├── CharacterLibrary/ # 角色库管理
+│   │   │   │   └── index.vue
+│   │   │   ├── SceneLibrary/ # 场景库管理
 │   │   │   │   └── index.vue
 │   │   │   ├── StoryboardProcess/ # 分镜流程管理
 │   │   │   │   └── index.vue
@@ -136,7 +139,7 @@ client/                 # 前端项目根目录
 - 使用侧边栏导航切换不同功能
 - 使用路由嵌套展示子页面内容
 
-### 3. 角色库页面 (`/project/:name/character-library`)
+### 3 角色库页面 (`/project/:name/character-library`)
 
 角色库页面用于管理项目中的角色信息。
 
@@ -156,12 +159,31 @@ client/                 # 前端项目根目录
   - 删除角色：从知识图谱中移除角色
 
 - 操作栏布局
+
   - 采用两行布局设计
   - 第一行：锁定/解锁 + 反推提示词按钮
   - 第二行：保存 + 删除按钮
   - 统一的按钮样式和大小
 
-### 4. 文本创作页面 (`/project/:name/text-creation`)
+### 4.场景库页面 (`/project/:name/scene-library`)
+
+场景库页面用于管理项目中的场景信息。
+
+**功能特点：**
+
+- 列表展示
+
+  - 显示名称、描述
+  - 支持中英文切换
+  - 提供操作栏进行管理
+
+- 管理功能
+
+  - 反推提示词：根据描述生成提示词
+  - 保存：保存场景的最新修改
+  - 删除：移除场景
+
+### 5. 文本创作页面 (`/project/:name/text-creation`)
 
 文本创作页面是项目的核心功能页面之一，用于管理和创作章节内容。
 
@@ -182,11 +204,12 @@ client/                 # 前端项目根目录
   - 使用 ReadableStream 和 TextDecoder 处理流式响应
 
 - 布局优化
+
   - 合理的按钮布局：分割章节按钮在左侧，保存和创作按钮在右侧
   - 响应式的文本编辑区域
   - 清晰的操作反馈和错误提示
 
-### 5. 分镜流程页面 (`views/ProjectMain/StoryboardProcess/index.vue`)
+### 6. 分镜流程页面 (`views/ProjectMain/StoryboardProcess/index.vue`)
 
 **功能特点：**
 
@@ -214,7 +237,7 @@ client/                 # 前端项目根目录
 - 批量操作按钮组：提供批量转换、生成和保存功能
 - 进度显示组件：使用 Element Plus 的 Progress 组件显示生成进度
 
-### 6. 视频输出页面 (`/project/:name/video-output`)
+### 7. 视频输出页面 (`/project/:name/video-output`)
 
 视频输出页面用于管理项目中的视频输出。
 
@@ -233,12 +256,13 @@ client/                 # 前端项目根目录
   - 编辑视频：编辑视频名称和描述
 
 - 操作栏布局
+
   - 采用两行布局设计
   - 第一行：下载 + 删除按钮
   - 第二行：编辑按钮
   - 统一的按钮样式和大小
 
-### 7. 404 页面 (`/:pathMatch(.*)`)
+### 8. 404 页面 (`/:pathMatch(.*)`)
 
 **功能特点：**
 
@@ -247,7 +271,7 @@ client/                 # 前端项目根目录
 - 支持多语言显示
 - 自适应主题样式
 
-### 8. 分镜流程管理页面 (`/project/:name/storyboard`)
+### 9. 分镜流程管理页面 (`/project/:name/storyboard`)
 
 分镜流程管理页面提供了场景的管理和生成功能。
 
@@ -285,6 +309,7 @@ client/                 # 前端项目根目录
    - 生成完成时显示平滑的进度动画
 
 5. **图像设置**
+
    - 支持设置图像宽度和高度
    - 支持选择图像生成风格
    - 所有设置实时生效
@@ -314,6 +339,7 @@ client/                 # 前端项目根目录
    - 支持随时取消生成
 
 4. **错误处理**
+
    - 显示详细的错误信息
    - 支持重试生成
    - 取消时自动清理状态
