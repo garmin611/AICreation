@@ -9,9 +9,7 @@ async def get_config():
     """获取当前配置"""
     try:
         config = load_config()
-        # 移除敏感信息
-        if 'api_keys' in config:
-            del config['api_keys']
+
         return make_response(
             data=config,
             msg='获取配置成功'

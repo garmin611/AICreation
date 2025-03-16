@@ -58,7 +58,7 @@ service.interceptors.response.use(
 // HTTP请求方法
 class HttpClient {
     // GET请求
-    get<T, O extends RequestOptions = RequestOptions>(url: string, params: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+    get<T=any, O extends RequestOptions = RequestOptions>(url: string, params: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
         return service({
             url,
             method: 'get',
@@ -68,7 +68,7 @@ class HttpClient {
     }
 
     // POST请求
-    post<T, O extends RequestOptions = RequestOptions>(url: string, data: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+    post<T=any, O extends RequestOptions = RequestOptions>(url: string, data: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
         return service({
             url,
             method: 'post',
@@ -78,7 +78,7 @@ class HttpClient {
     }
 
     // PUT请求
-    put<T, O extends RequestOptions = RequestOptions>(url: string, data: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+    put<T=any, O extends RequestOptions = RequestOptions>(url: string, data: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
         return service({
             url,
             method: 'put',
@@ -88,7 +88,7 @@ class HttpClient {
     }
 
     // DELETE请求
-    delete<T, O extends RequestOptions = RequestOptions>(url: string, params: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+    delete<T=any, O extends RequestOptions = RequestOptions>(url: string, params: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
         return service({
             url,
             method: 'delete',
@@ -98,7 +98,7 @@ class HttpClient {
     }
 
     // PATCH请求
-    patch<T, O extends RequestOptions = RequestOptions>(url: string, data: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
+    patch<T=any, O extends RequestOptions = RequestOptions>(url: string, data: any = null, options: O = {} as O): Promise<O extends { raw: true } ? ApiResponse<T> : T> {
         return service({
             url,
             method: 'patch',

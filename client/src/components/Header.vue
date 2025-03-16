@@ -30,7 +30,9 @@ const toggleTheme = () => {
 
 <template>
   <div class="header-content">
-    <div class="logo">{{ t('header.logo') }}</div>
+    <router-link to="/" style="text-decoration: none;">
+      <div class="logo">{{ t('header.logo') }}</div>
+    </router-link>
     <div class="right-section">
       <el-button @click="toggleTheme">
         <el-icon><component :is="isDark ? Sunny : Moon" /></el-icon>
@@ -45,10 +47,12 @@ const toggleTheme = () => {
         />
         <span class="lang-label">English</span>
       </div>
-      <el-button type="primary" class="settings-btn">
-        <el-icon class="el-icon--left"><Setting /></el-icon>
-        {{ t('common.settings') }}
-      </el-button>
+      <router-link to="/setting" style="text-decoration: none;">
+        <el-button type="primary" class="settings-btn">
+          <el-icon class="el-icon--left"><Setting /></el-icon>
+          {{ t('common.settings') }}
+        </el-button>
+      </router-link>
     </div>
   </div>
 </template>

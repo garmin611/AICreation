@@ -8,6 +8,11 @@ const router = createRouter({
       redirect: '/project'
     },
     {
+      path: '/setting',
+      name: 'Setting',
+      component: () => import('@/views/Setting/index.vue')
+    },
+    {
       path: '/project',
       name: 'Project',
       component: () => import('@/views/Project/index.vue')

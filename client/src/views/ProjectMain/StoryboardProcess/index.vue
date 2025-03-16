@@ -128,7 +128,7 @@
         </el-row>
       </div>
 
-      <el-table ref="tableRef" :data="currentPageData" style="width: 100%" v-loading="loading"
+      <el-table ref="tableRef" :data="currentPageData" style="width: 100%" 
                 @selection-change="handleSelectionChange" @select-all="handleSelectAll" row-key="id">
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="#" width="60" align="center">
@@ -165,7 +165,7 @@
               </el-input>
               <div class=" button-group">
                 <el-button v-if="row.scene" size="small" type="primary" :loading="row.translating"
-                           @click="convertSelectedPrompts([row])">
+                           @click="convertSelectedPrompts([row])" :disabled="loading">
                   {{ t('storyboardProcess.convertToPrompt') }}
                 </el-button>
               </div>
@@ -261,7 +261,7 @@ interface Scene {
   modified: boolean
   image: string
   audio: string  
-  generatingAudio?: boolean  // 新增字段用于控制音频生成按钮的状态
+  generatingAudio?: boolean  // 用于控制音频生成按钮的状态
 }
 
 const route = useRoute()
@@ -454,47 +454,6 @@ const checkGenerationProgress = async () => {
   }
 }
 
-// 生成单个图片
-// const generateImage = async (row: Scene) => {
-//   if (!row.prompt) {
-//     ElMessage.warning(t('storyboardProcess.noPrompt'))
-//     return
-//   }
-
-//   try {
-//     generatingScenes.value.add(row.id)
-//     const params = {
-//       project_name: projectName.value,
-//       chapter_name: chapterName.value,
-//       imageSettings: imageSettings.value,
-//       prompts: [{
-//         id: row.id,
-//         prompt: row.prompt
-//       }]
-//     }
-    
-//     const data = await mediaApi.generateImages(params)
-    
-//     // 设置进度信息
-//     progress.value.taskId = data.task_id
-//     progress.value.total = data.total
-//     progress.value.current = 0
-//     progress.value.status = data.status
-//     progress.value.errors = data.errors || []
-//     generating.value = true
-    
-//     // 开始定时检查进度
-//     if (progressTimer) clearInterval(progressTimer)
-//     progressTimer = setInterval(checkGenerationProgress, 1000)
-    
-//   } catch (error) {
-//     console.error('Failed to generate image:', error)
-//     ElMessage.error(t('common.operationFailed'))
-//     generatingScenes.value.delete(row.id)
-//     generating.value = false
-//     resetProgress()
-//   }
-// }
 
 // 添加选中行的状态
 const selectedRows = ref<Scene[]>([])
@@ -576,13 +535,14 @@ const convertSelectedPrompts = async (selectedRows:Scene[]) => {
     
     const scenesToConvert = selectedRows.filter(row => row.scene)
     if (scenesToConvert.length === 0) {
-
       return
     }
 
     // 获取所有需要转换的场景描述
     const descriptions = scenesToConvert.map(row =>row.base_scene+","+row.scene)
-    
+    scenesToConvert.forEach(row => {
+      row.translating = true//设置为正在转换
+    })
     // 批量转换
     const results = await chapterApi.translatePrompt(projectName.value, descriptions)
     
@@ -590,6 +550,7 @@ const convertSelectedPrompts = async (selectedRows:Scene[]) => {
     scenesToConvert.forEach((row:Scene, index) => {
       row.prompt = results[index]
       row.modified = true
+      row.translating = false//设置为转换完成
     })
     
     ElMessage.success(t('common.success'))
@@ -701,49 +662,6 @@ const generateSelectedAudio = async (selectedRows:Scene[]) => {
   }
 }
 
-
-// 生成单个音频
-// const generateAudio = async (row: Scene) => {
-//   if (!row.span) {
-//     ElMessage.warning(t('storyboardProcess.noContent'))
-//     return
-//   }
-
-//   try {
-//     generatingAudioScenes.value.add(row.id)
-//     generatingAllAudio.value = true  // 添加这行来显示进度条
-//     const params = {
-//       project_name: projectName.value,
-//       chapter_name: chapterName.value,
-//       audioSettings: {
-//         voice: audioSettings.value.narrator,
-//         rate: audioSettings.value.speakingRate >= 0 ? `+${audioSettings.value.speakingRate}%` : `${audioSettings.value.speakingRate}%`
-//       },
-//       prompts: [{
-//         id: row.id,
-//         prompt: row.span
-//       }]
-//     }
-    
-//     const data = await mediaApi.generateAudio(params)
-//     progress.value.taskId = data.task_id
-//     progress.value.total = data.total
-//     progress.value.current = 0
-//     progress.value.status = data.status
-//     progress.value.errors = data.errors || []
-    
-//     // 开始定时检查进度
-//     if (progressTimer) clearInterval(progressTimer)
-//     progressTimer = setInterval(checkGenerationProgress, 1000)
-    
-//   } catch (error) {
-//     console.error('Failed to generate audio:', error)
-//     ElMessage.error(t('common.operationFailed'))
-//     generatingAudioScenes.value.delete(row.id)
-//     generatingAllAudio.value = false  // 添加这行来重置状态
-//     resetProgress()
-//   }
-// }
 
 const stopGeneration = async () => {
   try {

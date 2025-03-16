@@ -93,6 +93,38 @@ export default {
     generationInProgress: 'Generation is in progress',
     generationCancelled: 'Generation cancelled'
   },
+  setting: {
+    title: 'System Configuration',
+    save: 'Save Configuration',
+    saveSuccess: 'Configuration saved successfully',
+    saveError: 'Failed to save configuration',
+    loadError: 'Failed to load configuration',
+    comfyui: {
+      apiUrl: 'ComfyUI API URL',
+      apiUrlPlaceholder: 'Please enter ComfyUI API URL'
+    },
+    defaultWorkflow: {
+      name: 'Default Workflow',
+      namePlaceholder: 'Please select default workflow'
+    },
+    llm: {
+      title: 'LLM Configuration',
+      apiUrl: 'API URL',
+      apiUrlPlaceholder: 'Please enter API URL',
+      modelName: 'Model Name',
+      modelNamePlaceholder: 'Please enter model name',
+      windowSize: 'Window Size'
+    },
+    path: {
+      title: 'Path Configuration',
+      projectsPath: 'Projects Path',
+      projectsPathPlaceholder: 'Please enter relative projects path',
+      promptsPath: 'Prompts Path',
+      promptsPathPlaceholder: 'Please enter relative prompts path',
+      workflowPath: 'Workflow Path',
+      workflowPathPlaceholder: 'Please enter relative workflow path'
+    }
+  },
   projectMain: {
     textCreation: 'Text Creation',
     characterLibrary: 'Character Library',

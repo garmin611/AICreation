@@ -40,6 +40,7 @@ project/
 ├── projects/                 # 项目文件夹
 │   ├── project1/             # 具体项目文件夹
 │   │   ├── kg.json           # 知识图谱数据文件
+│   │   ├── scenes.json           # 基底场景数据文件
 │   │   ├── chapters/         # 章节文件夹
 │   │   │   ├── chapter1/     # 章节文件夹
 │   │   │   │   ├── 0/        # 子文件夹

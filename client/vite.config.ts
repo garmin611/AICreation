@@ -8,5 +8,10 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, 'src')
     }
+  },
+  server: {
+    port: 5180,
+    host: '127.0.0.1',
+    open: true,
   }
 })

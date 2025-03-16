@@ -31,6 +31,38 @@ export default {
     title: '404',
     subTitle: '抱歉，您访问的页面不存在'
   },
+  setting: {
+    title: '系统配置',
+    save: '保存配置',
+    saveSuccess: '配置保存成功',
+    saveError: '配置保存失败',
+    loadError: '获取配置失败',
+    comfyui: {
+      apiUrl: 'ComfyUI API地址',
+      apiUrlPlaceholder: '请输入ComfyUI API地址'
+    },
+    defaultWorkflow: {
+      name: '默认工作流',
+      namePlaceholder: '请选择默认工作流'
+    },
+    llm: {
+      title: 'LLM 配置',
+      apiUrl: 'API URL',
+      apiUrlPlaceholder: '请输入API URL',
+      modelName: '模型名称',
+      modelNamePlaceholder: '请输入模型名称',
+      windowSize: '窗口大小'
+    },
+    path: {
+      title: '路径配置',
+      projectsPath: '项目路径',
+      projectsPathPlaceholder: '请输入项目相对路径',
+      promptsPath: '提示词路径',
+      promptsPathPlaceholder: '请输入提示词相对路径',
+      workflowPath: '工作流路径',
+      workflowPathPlaceholder: '请输入工作流相对路径'
+    }
+  },
   project: {
     create: '新增项目',
     createTitle: '创建新项目',

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import Header from './components/Header.vue'
 import { useDark, useToggle } from '@vueuse/core'
 
@@ -38,7 +37,6 @@ html.dark {
 
 .el-header {
   padding: 0;
-  width: 100vw;
   height: 64px;
   background-color: var(--el-bg-color);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
