@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response,Body
 from server.config.config import load_config
 from server.services.image_service import ImageService
 from server.services.audio_service import AudioService
@@ -31,12 +31,17 @@ async def generate_images(request: Request):
         
         # 获取工作流和参数
         workflow = data.get('workflow', config.get('default_workflow', {}).get('name', 'default_workflow.json'))
+
+ 
+
         params = data.get('params', {})
         width = image_settings.get('width', 512)
         height = image_settings.get('height', 512)
+        style=image_settings.get('style','anime')
         params['width']=width
         params['height']=height
-
+        params['style']=style
+       
 
         # 构建输出路径数组
         output_dirs = []
@@ -159,9 +164,12 @@ async def get_generation_progress(task_id: str):
         return make_response(status='error', msg=f'获取进度时发生错误：{str(e)}')
 
 @router.post('/cancel')
-async def cancel_generation(task_id: str):
+async def cancel_generation(request: Request):
     """取消生成任务。"""
     try:
+        data=await request.json()
+        task_id=data.get("task_id")
+        print("准备中断：",task_id)
         # 根据任务ID的前缀判断是图片任务还是音频任务
         if task_id.startswith('audio_'):
             success = audio_service.cancel_generation(task_id)

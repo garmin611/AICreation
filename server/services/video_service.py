@@ -7,7 +7,7 @@ from PIL import Image
 from moviepy.editor import ImageSequenceClip, AudioFileClip
 import subprocess
 import threading
-import tempfile
+from server.utils.image_effect import ImageEffects
 import gc
 from typing import List, Dict, Optional
 
@@ -20,11 +20,14 @@ class VideoService:
         self.default_settings = {
             'resolution': (1920, 1080),
             'fps': 24,
-         
+            'threads': min(2, os.cpu_count()/1.5 or 4),
             'use_cuda': True,
             'codec': 'h264_nvenc',
             'batch_size': 5,
-            'temp_dir': None
+            'temp_dir': None,
+            'fade_duration': 1.5,  # 淡入淡出时长（秒）
+            'pan_range': (0.5, 0),  # 横向移动原图可用范围的50%，纵向0%
+            'shake_intensity': 4  # 抖动强度（像素）
         }
         self.stop_flag = threading.Event()
         self._check_hardware()
@@ -40,7 +43,7 @@ class VideoService:
                 self.default_settings.update({
                     'use_cuda': False,
                     'codec': 'libx264',
-                    'threads': min(2, os.cpu_count()/1.5 or 4)
+    
                 })
         except Exception as e:
             logger.error("硬件检测失败: %s", str(e))
@@ -68,11 +71,12 @@ class VideoService:
         audio = AudioFileClip(audio_path)
         return image, audio
 
-    def _process_segment(self, subdir: str,temp_dir:str, settings: Dict) -> Optional[str]:
+    def _process_segment(self, subdir: str, temp_dir: str, settings: Dict) -> Optional[str]:
         """处理单个视频片段"""
         logger.info("开始处理片段: %s", subdir)
         temp_file = os.path.join(temp_dir, f"vid_{subdir}_{os.getpid()}.mp4")
         start_time = time.time()
+        frames = []  # 提前初始化frames
         
         try:
             # 加载资源
@@ -83,7 +87,6 @@ class VideoService:
             total_frames = int(duration * settings['fps'])
             
             # 生成帧数据
-            frames = []
             for i in range(total_frames):
                 if self.stop_flag.is_set():
                     break
@@ -101,12 +104,8 @@ class VideoService:
             # 写入临时文件
             self._write_temp_video(frames, audio, temp_file, settings)
             
-            logger.info(
-                "完成片段 %s | 耗时: %.1fs | 大小: %s",
-                subdir, 
-                time.time()-start_time,
-                self._format_size(os.path.getsize(temp_file))
-            )
+            logger.info("完成片段 %s | 耗时: %.1fs | 大小: %s",subdir, time.time()-start_time,self._format_size(os.path.getsize(temp_file)))
+
             return temp_file
             
         except Exception as e:
@@ -176,7 +175,6 @@ class VideoService:
             if not subdirs:
                 raise ValueError("无有效视频片段")
 
-    
 
             logger.info("发现 %d 个待处理片段", len(subdirs))
 
@@ -210,7 +208,7 @@ class VideoService:
     def _merge_videos(self, temp_files: List[str], output_path: str, settings: Dict) -> str:
         """合并视频片段"""
         concat_list = os.path.join(os.path.dirname(output_path), "concat.txt")
-        
+       
         try:
             # 生成合并列表，使用UTF-8编码写入
             with open(concat_list, 'w', encoding='utf-8') as f:
@@ -232,7 +230,7 @@ class VideoService:
             ]
             if settings.get('use_cuda', False):
                 cmd[1:1] = ['-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda']
-                
+      
             # 执行命令
             subprocess.run(cmd, check=True, capture_output=True)
             logger.info("视频合并成功: %s", output_path)
@@ -251,33 +249,17 @@ class VideoService:
 
     def _apply_effects(self, image: Image.Image, time_val: float, 
                       duration: float, settings: Dict) -> Image.Image:
-        """应用缩放和平移动效"""
+        """应用所有视频特效"""
         try:
-            # 动态缩放计算
-            progress = min(time_val / duration, 1.0)
-            if progress < 0.3:
-                zoom = 1 + (settings['zoom_factor']-1) * (progress/0.3)
-            else:
-                zoom = settings['zoom_factor'] - (settings['zoom_factor']-1)*((progress-0.3)/0.7)
-
-            # 缩放处理
-            new_size = (
-                int(settings['resolution'][0] * zoom),
-                int(settings['resolution'][1] * zoom)
+            effect_params = {
+                'output_size': self.default_settings['resolution'],
+                'fade_duration': settings.get('fade_duration', 1.0),
+                'pan_range': settings.get('pan_range', (0.5, 0)),
+            }
+            
+            return ImageEffects.apply_effects(
+                image, time_val, duration, effect_params
             )
-            with image.resize(new_size, Image.LANCZOS) as zoomed_img:
-                # 动态平移
-                offset = int(settings['pan_intensity'] * abs(np.sin(2 * time_val)))
-                left = max(0, (zoomed_img.width - settings['resolution'][0]) // 2 + offset)
-                top = max(0, (zoomed_img.height - settings['resolution'][1]) // 2)
-                left = min(left, zoomed_img.width - settings['resolution'][0])
-                top = min(top, zoomed_img.height - settings['resolution'][1])
-                
-                return zoomed_img.crop((
-                    left, top, 
-                    left + settings['resolution'][0], 
-                    top + settings['resolution'][1]
-                ))
         except Exception as e:
             logger.error("特效处理失败: %s", str(e))
             raise

@@ -116,7 +116,7 @@ const isGenerating = ref(false)
 const videoUrl = ref('')
 const errorMessage = ref('')
 
-const resolutionInput = ref('')
+const resolutionInput = ref('1920,1080')
 
 // 获取章节列表
 // 在组件中修改视频生成处理逻辑

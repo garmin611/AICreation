@@ -45,7 +45,7 @@ class ImageService(SingletonService):
     def _connect_websocket(self) -> websocket.WebSocketApp:
         """连接到 ComfyUI WebSocket。"""
         ws_url = f"{self.ws_url}/ws?clientId={self.client_id}"
-        
+   
         def on_message(ws, message):
             try:
                 data = json.loads(message)
@@ -126,13 +126,17 @@ class ImageService(SingletonService):
             print(f"Error loading workflow: {str(e)}")
             return None
         
-    def _update_workflow_prompt(self, workflow: Dict[str, Any], prompt: str) -> Dict[str, Any]:
+    def _update_workflow_prompt(self, workflow: Dict[str, Any], prompt: str,style='anime') -> Dict[str, Any]:
         """更新工作流中的提示词。"""
         for node_id, node in workflow.items():
             if node.get('class_type') == 'CLIPTextEncodeFlux':
-                enhanced_prompt = f"Chinese anime, rich colors, cinematic lighting, artstation trending, high detail, no text, detailed, vibrant, {prompt}"
+                origin_prompt=node['inputs']['t5xxl'] 
+                if 'bad' in origin_prompt or 'worst' in origin_prompt:#说明是负面提示词，不用更改
+                    continue
+                enhanced_prompt = f"{prompt}, {style}, masterpiece, best quality, 8K, HDR, highres"
                 node['inputs']['clip_l'] = enhanced_prompt
                 node['inputs']['t5xxl'] = enhanced_prompt
+               
                 break
         return workflow
         
@@ -254,7 +258,7 @@ class ImageService(SingletonService):
                 return False
                 
             # 更新工作流参数
-            workflow = self._update_workflow_prompt(workflow, prompt)
+            workflow = self._update_workflow_prompt(workflow, prompt,params['style'])
             
             # 强制设置随机种子
             if seed is None:
@@ -383,7 +387,7 @@ class ImageService(SingletonService):
                             continue
                             
                         # 更新工作流参数
-                        workflow_data = self._update_workflow_prompt(workflow_data, prompt)
+                        workflow_data = self._update_workflow_prompt(workflow_data, prompt,current_params['style'])
                         workflow_data = self._update_workflow_seed(workflow_data, current_params['seed'])
                         workflow_data = self._update_workflow_params(workflow_data, current_params)
                         

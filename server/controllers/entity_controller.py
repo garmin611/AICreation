@@ -86,7 +86,7 @@ async def delete_character(name: str, project_name: str = Query(..., description
         
         # 检查删除结果
         if '成功' in result:
-            return make_response()
+            return make_response(data=True)
         else:
             return make_response(status='error', msg=result)
             

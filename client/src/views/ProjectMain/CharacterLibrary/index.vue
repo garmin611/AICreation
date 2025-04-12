@@ -289,7 +289,7 @@ const deleteEntity = async (row: any) => {
     )
     
     const res = await entityApi.deleteCharacter(projectName.value, row.name)
-    if (res.status === 'success') {
+    if (res) {
       ElMessage.success(t('entity.deleteSuccess'))
       await fetchCharacters()
     } else {

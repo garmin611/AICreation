@@ -1,7 +1,7 @@
 comfyui:
   api_url: http://192.168.10.9:8188
 default_workflow:
-  name: comfyui.json
+  name: flux-d-fp8-alimama.json
 llm:
   api_key: sk-jbmoetlepdnlssacqpvunssgsxyduuoihgymxvkfhwohtauc
   api_url: https://api.siliconflow.cn/v1

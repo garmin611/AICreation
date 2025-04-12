@@ -272,11 +272,18 @@ const projectName = computed(() => route.params.name as string)
 const chapterList = ref<{ label: string; value: string }[]>([])
 const chapterName = ref('')
 
+// 画风列表
+const styleList = ref([
+  { label: '动漫', value: 'anime' },
+  { label: '写实', value: 'realism' },
+  { label: '风景', value: 'scenery' }
+])
+
 // 图像设置
 const imageSettings = ref<ImageSettings>({
   width: 512,
   height: 512,
-  style: 'realistic'
+  style: 'anime'
 })
 
 // 音频设置
@@ -285,12 +292,7 @@ const audioSettings = ref<AudioSettings>({
   speakingRate: 0
 })
 
-// 画风列表
-const styleList = ref([
-  { label: '写实风格', value: 'realistic' },
-  { label: '动漫风格', value: 'anime' },
-  { label: '油画风格', value: 'oil-painting' }
-])
+
 
 // 音频设置
 const voiceList = ref([
@@ -662,7 +664,7 @@ const generateSelectedAudio = async (selectedRows:Scene[]) => {
   }
 }
 
-
+//停止生成
 const stopGeneration = async () => {
   try {
     if (!progress.value.taskId) {

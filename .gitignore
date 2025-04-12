@@ -23,6 +23,7 @@ projects/*
 
 # 测试文件
 server/tests/
+*文.md
 
 # 系统文件
 .DS_Store
