@@ -17,11 +17,10 @@ class VideoSettings(BaseModel):
     project_name:Optional[str] = None
     chapter_name:Optional[str] = None
     """视频效果配置模型"""
-    zoom_factor: Optional[float] = None
-    pan_intensity: Optional[int] = None
-    font_name: Optional[str] = None
-    font_size: Optional[int] = None
-    resolution: Optional[Tuple[int, int]] = None
+    fps: Optional[float] = 24
+    use_pan: Optional[bool] = True#是否使用平移效果
+    pan_range: Optional[Tuple[float, float]] = (0.5, 0)# 横向移动原图可用范围的50%，纵向0%
+    resolution: Optional[Tuple[int, int]] = (1920, 1080)
 
 @router.post("/generate_video")
 async def generate_video(

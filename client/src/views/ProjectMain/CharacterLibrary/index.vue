@@ -72,13 +72,14 @@
               >
                 {{ isLocked(row.name) ? t('entity.unlockPrompt') : t('entity.lockPrompt') }}
               </el-button>
-              <el-button
+              <!-- 暂时不实现反推功能 -->
+              <!-- <el-button
                 type="info"
                 :disabled="isLocked(row.name)"
                 @click="openReversePrompt(row)"
               >
                 {{ t('entity.reversePrompt') }}
-              </el-button>
+              </el-button> -->
             </div>
             <div class="button-row">
               <el-button

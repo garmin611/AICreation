@@ -22,7 +22,8 @@ export default {
     operationFailed: '操作失败',
     moveUp: '上移',
     moveDown: '下移',
-    loadError: '加载失败'
+    loadError: '加载失败',
+    noDataToProcess: '没有数据可处理'
   },
   header: {
     logo: 'AI 工厂'
@@ -180,5 +181,19 @@ export default {
     fetchChapterContentFailed: '获取章节内容失败',
     saveFailed: '保存失败',
     generateFailed: '生成失败'
+  },
+  videoOutput: {
+    title: '视频输出',
+    chapterSelect: '请选择章节',
+    usePan: '启用画面平移',
+    panRange: '平移范围',
+    panRangeX: '横向平移范围',
+    panRangeY: '纵向平移范围',
+    fps: '帧率',
+    resolution: '分辨率',
+    width: '宽度',
+    height: '高度',
+    generateVideo: '生成视频',
+    browserNotSupport: '您的浏览器不支持视频播放'
   }
 }

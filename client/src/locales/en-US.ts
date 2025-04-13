@@ -22,7 +22,8 @@ export default {
     operationFailed: 'Operation failed',
     moveUp: 'Move Up',
     moveDown: 'Move Down',
-    loadError: 'Failed to load'
+    loadError: 'Failed to load',
+    noDataToProcess: 'No data to process'
   },
   header: {
     logo: 'AI Factory'
@@ -186,5 +187,19 @@ export default {
   menu: {
     characterLibrary: 'Character Library',
     sceneLibrary: 'Scene Library',
+  },
+  videoOutput: {
+    title: 'Video Output',
+    chapterSelect: 'Please Select Chapter',
+    usePan: 'Enable Pan Effect',
+    panRange: 'Pan Range',
+    panRangeX: 'Horizontal Pan Range',
+    panRangeY: 'Vertical Pan Range',
+    fps: 'FPS',
+    resolution: 'Resolution',
+    width: 'Width',
+    height: 'Height',
+    generateVideo: 'Generate Video',
+    browserNotSupport: 'Your browser does not support video playback'
   }
 }

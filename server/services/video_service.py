@@ -20,12 +20,13 @@ class VideoService:
         self.default_settings = {
             'resolution': (1920, 1080),
             'fps': 24,
-            'threads': min(2, os.cpu_count()/1.5 or 4),
+            'threads': min(4, os.cpu_count()/1.5),
             'use_cuda': True,
             'codec': 'h264_nvenc',
             'batch_size': 5,
             'temp_dir': None,
             'fade_duration': 1.5,  # 淡入淡出时长（秒）
+            'use_pan': True,
             'pan_range': (0.5, 0),  # 横向移动原图可用范围的50%，纵向0%
             'shake_intensity': 4  # 抖动强度（像素）
         }
@@ -43,7 +44,7 @@ class VideoService:
                 self.default_settings.update({
                     'use_cuda': False,
                     'codec': 'libx264',
-    
+                    'threads': min(4, os.cpu_count()/1.5)
                 })
         except Exception as e:
             logger.error("硬件检测失败: %s", str(e))
@@ -164,7 +165,7 @@ class VideoService:
         final_settings['chapter_path'] = chapter_path
         output_path = os.path.join(chapter_path, "video.mp4")
         temp_files = []
-        
+   
         try:
             # 获取待处理片段列表
             subdirs = sorted([
@@ -254,7 +255,8 @@ class VideoService:
             effect_params = {
                 'output_size': self.default_settings['resolution'],
                 'fade_duration': settings.get('fade_duration', 1.0),
-                'pan_range': settings.get('pan_range', (0.5, 0)),
+                'use_pan': settings.get('use_pan', True),
+                'pan_range': settings.get('pan_range', (0.5, 0))
             }
             
             return ImageEffects.apply_effects(

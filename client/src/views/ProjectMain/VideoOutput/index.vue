@@ -1,12 +1,12 @@
 <template>
   <div class="video-output">
-    <h3>视频输出</h3>
+    <h3>{{ t('videoOutput.title') }}</h3>
     
     <!-- 章节选择 -->
     <div class="section">
       <el-select 
         v-model="selectedChapter" 
-        placeholder="请选择章节"
+        :placeholder="t('videoOutput.chapterSelect')"
         @change="handleChapterChange"
       >
         <el-option
@@ -20,43 +20,72 @@
 
     <!-- 视频配置表单 -->
     <div class="config-section">
-      <el-form :model="videoSettings" label-width="120px">
-        <el-form-item label="缩放系数">
-          <el-input-number 
-            v-model="videoSettings.zoom_factor" 
-            :min="0.1" 
-            :max="2" 
-            :step="0.1"
-          />
+      <el-form :model="videoSettings" label-width="180px">
+        <!-- 画面平移设置 -->
+        <el-form-item :label="t('videoOutput.usePan')">
+          <el-switch v-model="videoSettings.use_pan" />
         </el-form-item>
         
-        <el-form-item label="平移强度">
+        <template v-if="videoSettings.use_pan">
+          <el-form-item :label="t('videoOutput.panRangeX')">
+            <el-slider 
+              v-model="videoSettings.pan_range[0]" 
+              :min="0" 
+              :max="1" 
+              :step="0.1" 
+            />
+          </el-form-item>
+          
+          <el-form-item :label="t('videoOutput.panRangeY')">
+            <el-slider 
+              v-model="videoSettings.pan_range[1]" 
+              :min="0" 
+              :max="1" 
+              :step="0.1" 
+            />
+          </el-form-item>
+        </template>
+
+        <!-- 帧率设置 -->
+        <el-form-item :label="t('videoOutput.fps')">
           <el-input-number 
-            v-model="videoSettings.pan_intensity" 
-            :min="0" 
-            :max="10"
+            v-model="videoSettings.fps" 
+            :min="1" 
+            :max="60"
           />
         </el-form-item>
 
-        <el-form-item label="字体名称">
-          <el-input v-model="videoSettings.font_name" />
-        </el-form-item>
-
-        <el-form-item label="字体大小">
-          <el-input-number v-model="videoSettings.font_size" :min="10" :max="72" />
-        </el-form-item>
-
-        <el-form-item label="分辨率">
-          <el-input
-  v-model="resolutionInput"
-  placeholder="输入格式：1920,1080"
-/>
+        <!-- 分辨率设置 -->
+        <el-form-item :label="t('videoOutput.resolution')">
+          <el-input-number 
+            v-model="videoSettings.resolution[0]" 
+            :min="480" 
+            :max="3840"
+            :step="16"
+            :placeholder="t('videoOutput.width')"
+            style="margin-right: 10px"
+          />
+          <el-input-number 
+            v-model="videoSettings.resolution[1]" 
+            :min="360" 
+            :max="2160"
+            :step="16"
+            :placeholder="t('videoOutput.height')"
+          />
         </el-form-item>
       </el-form>
     </div>
 
     <!-- 操作按钮和视频区域 -->
-    
+    <div class="action-section">
+      <el-button 
+        type="primary" 
+        :loading="isGenerating"
+        @click="handleGenerateVideo"
+      >
+        {{ t('videoOutput.generateVideo') }}
+      </el-button>
+    </div>
 
     <div class="video-preview" v-if="videoUrl">
       <video 
@@ -64,23 +93,12 @@
         :src="videoUrl"
         class="video-player"
       >
-
-        您的浏览器不支持视频播放
+        {{ t('videoOutput.browserNotSupport') }}
       </video>
     </div>
 
     <div v-if="errorMessage" class="error-message">
       {{ errorMessage }}
-    </div>
-
-    <div class="action-section">
-      <el-button 
-        type="primary" 
-        :loading="isGenerating"
-        @click="handleGenerateVideo"
-      >
-        生成视频
-      </el-button>
     </div>
   </div>
 </template>
@@ -92,9 +110,12 @@ import { chapterApi } from '@/api/chapter_api'
 import { videoApi } from '@/api/video_api'
 import type { VideoSettings } from '@/types/video'
 import { getResourcePath } from '@/utils/resourcePath'
+import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const projectName = route.params.name as string
+
+const { t } = useI18n()
 
 // 章节相关
 const chapters = ref<string[]>([])
@@ -104,10 +125,9 @@ const selectedChapter = ref('')
 const videoSettings = ref<VideoSettings>({
   project_name: projectName,
   chapter_name:'',
-  zoom_factor: 1.0,
-  pan_intensity: 5,
-  font_name: 'Arial',
-  font_size: 24,
+  use_pan: true,
+  pan_range: [0.5, 0],
+  fps: 24,
   resolution:[1920,1080]
 })
 
@@ -116,17 +136,13 @@ const isGenerating = ref(false)
 const videoUrl = ref('')
 const errorMessage = ref('')
 
-const resolutionInput = ref('1920,1080')
+
 
 // 获取章节列表
 // 在组件中修改视频生成处理逻辑
 const handleGenerateVideo = async () => {
   try {
-    // 构造符合后端要求的参数结构
-    videoSettings.value.resolution=resolutionInput.value
-          ? (resolutionInput.value.split(',').map(Number) as [number, number])
-          : [1920,1080]
-
+  
     videoSettings.value.chapter_name = selectedChapter.value;
     // 清除空值字段
 
@@ -177,7 +193,7 @@ onMounted(() => {
 <style scoped>
 .video-output {
   padding: 20px;
-  max-width: 800px;
+  max-width: 70vw;
   margin: 0 auto;
 }
 
@@ -188,7 +204,7 @@ onMounted(() => {
 .config-section {
   margin: 24px 0;
   padding: 20px;
-  border: 1px solid #eee;
+  border: 1px solid var(--el-border-color);
   border-radius: 4px;
 }
 
@@ -198,7 +214,7 @@ onMounted(() => {
 
 .video-player {
   width: 100%;
-  max-width: 720px;
+  max-width: 70vw;
   border-radius: 4px;
   background: #000;
 }

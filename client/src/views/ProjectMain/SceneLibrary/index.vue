@@ -25,9 +25,9 @@
                     <div class="operation-buttons">
                         <div class="button-row">
 
-                            <el-button type="info" @click="openReversePrompt(row)">
+                            <!-- <el-button type="info" @click="openReversePrompt(row)">
                                 {{ t('entity.reversePrompt') }}
-                            </el-button>
+                            </el-button> -->
                         </div>
                         <div class="button-row">
                             <el-button type="success" @click="savePrompt(row)">

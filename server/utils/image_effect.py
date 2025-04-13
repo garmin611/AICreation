@@ -71,8 +71,9 @@ class ImageEffects:
         # 效果执行顺序
         effect_chain = [
             cls.fade_effect,
-            cls.pan_effect,
         ]
+        if params.get('use_pan', True):
+            effect_chain.append(cls.pan_effect)
         
         processed_image = image.copy()
         for effect in effect_chain:
