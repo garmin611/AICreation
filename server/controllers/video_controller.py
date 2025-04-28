@@ -17,9 +17,10 @@ class VideoSettings(BaseModel):
     project_name:Optional[str] = None
     chapter_name:Optional[str] = None
     """视频效果配置模型"""
-    fps: Optional[float] = 24
+    fade_duration: Optional[float] = 1.2# 淡入淡出时长（秒）
+    fps: Optional[float] = 15
     use_pan: Optional[bool] = True#是否使用平移效果
-    pan_range: Optional[Tuple[float, float]] = (0.5, 0)# 横向移动原图可用范围的50%，纵向0%
+    pan_range: Optional[Tuple[float, float]] = (0.5, 0.5)# 横向移动原图可用范围的50%，纵向50%
     resolution: Optional[Tuple[int, int]] = (1920, 1080)
 
 @router.post("/generate_video")
@@ -36,7 +37,7 @@ async def generate_video(
     
         # 构建章节路径
         chapter_path=os.path.join(base_path,settings.project_name,settings.chapter_name)
-        
+   
 
         logger.info(chapter_path)
         if not os.path.exists(chapter_path) :
@@ -51,7 +52,7 @@ async def generate_video(
             future = executor.submit(
                 video_service.generate_video,
                 str(chapter_path),
-                video_settings=settings.dict(exclude_unset=True) if settings else None
+                video_settings=settings.model_dump(exclude_unset=True) if settings else None
             )
             output_path = future.result()
 

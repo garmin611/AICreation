@@ -1,15 +1,20 @@
 import logging
 import os
 import time
+from moviepy import *
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor,as_completed,wait
 from PIL import Image
-from moviepy.editor import ImageSequenceClip, AudioFileClip
+from moviepy import ImageSequenceClip
+from moviepy import AudioFileClip
+from moviepy import CompositeAudioClip
+from moviepy import AudioArrayClip
+
 import subprocess
 import threading
 from server.utils.image_effect import ImageEffects
 import gc
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +23,16 @@ class VideoService:
     
     def __init__(self):
         self.default_settings = {
-            'resolution': (1920, 1080),
-            'fps': 24,
+            'resolution': (1024, 1024),
+            'fps': 15,
             'threads': min(4, os.cpu_count()/1.5),
             'use_cuda': True,
             'codec': 'h264_nvenc',
-            'batch_size': 5,
+            'batch_size': 8,
             'temp_dir': None,
-            'fade_duration': 1.5,  # 淡入淡出时长（秒）
+            'fade_duration': 1.2,  # 淡入淡出时长（秒），≤0时则不使用淡入淡出效果
             'use_pan': True,
             'pan_range': (0.5, 0),  # 横向移动原图可用范围的50%，纵向0%
-            'shake_intensity': 4  # 抖动强度（像素）
         }
         self.stop_flag = threading.Event()
         self._check_hardware()
@@ -46,11 +50,13 @@ class VideoService:
                     'codec': 'libx264',
                     'threads': min(4, os.cpu_count()/1.5)
                 })
+            else:
+                logger.info("NVENC可用，使用GPU模式")
         except Exception as e:
             logger.error("硬件检测失败: %s", str(e))
             self.cuda_available = False
 
-    def _load_resources(self, subdir_path: str) -> tuple:
+    def _load_resources(self, subdir_path: str,resolution:Tuple[int,int]) -> tuple:
         """加载图片和音频资源"""
         image_path = os.path.join(subdir_path, "image.png")
         audio_path = os.path.join(subdir_path, "audio.mp3")
@@ -66,49 +72,37 @@ class VideoService:
         with Image.open(image_path) as img:
             if img.mode != 'RGB':
                 img = img.convert('RGB')
-            image = img.resize(self.default_settings['resolution'], Image.LANCZOS)
+            image = img.resize(resolution, Image.LANCZOS)
 
-        # 加载音频
+        # 加载音频并确保它是AudioFileClip对象
         audio = AudioFileClip(audio_path)
         return image, audio
 
     def _process_segment(self, subdir: str, temp_dir: str, settings: Dict) -> Optional[str]:
         """处理单个视频片段"""
-        logger.info("开始处理片段: %s", subdir)
         temp_file = os.path.join(temp_dir, f"vid_{subdir}_{os.getpid()}.mp4")
         start_time = time.time()
-        frames = []  # 提前初始化frames
-        
+        frames = []
+
         try:
             # 加载资源
-            image, audio = self._load_resources(
-                os.path.join(settings['chapter_path'], subdir)
-            )
+            image, audio = self._load_resources(os.path.join(settings['chapter_path'], subdir),settings['resolution'])
             duration = audio.duration
             total_frames = int(duration * settings['fps'])
-            
-            # 生成帧数据
+
+            # 生成帧数据（保持不变）
             for i in range(total_frames):
                 if self.stop_flag.is_set():
                     break
-                
-                # 应用特效
-                frame = self._apply_effects(
-                    image.copy(), 
-                    i/settings['fps'], 
-                    duration, 
-                    settings
-                )
+                frame = self._apply_effects(image.copy(), i/settings['fps'], duration, settings, subdir)
                 frames.append(np.array(frame))
                 frame.close()
 
-            # 写入临时文件
+            # 写入临时文件（使用修改后的 _write_temp_video）
             self._write_temp_video(frames, audio, temp_file, settings)
-            
-            logger.info("完成片段 %s | 耗时: %.1fs | 大小: %s",subdir, time.time()-start_time,self._format_size(os.path.getsize(temp_file)))
-
+            logger.info("完成片段 %s | 耗时: %.1fs | 大小: %s", subdir, time.time()-start_time, self._format_size(os.path.getsize(temp_file)))
             return temp_file
-            
+
         except Exception as e:
             logger.error("处理失败 [%s]: %s", subdir, str(e))
             if os.path.exists(temp_file):
@@ -116,52 +110,56 @@ class VideoService:
             return None
         finally:
             # 释放资源
-            if 'image' in locals(): image.close()
-            if 'audio' in locals(): audio.close()
+            if 'image' in locals():
+                image.close()
+            if 'audio' in locals():
+                audio.close()
             del frames
             gc.collect()
 
-    def _write_temp_video(self, frames: list, audio: AudioFileClip, 
-                         output_path: str, settings: Dict):
+    def _write_temp_video(self, frames: list, audio: AudioFileClip, output_path: str, settings: Dict):
         """安全写入视频片段"""
-        with ImageSequenceClip(frames, fps=settings['fps']) as clip:
-            clip = clip.set_audio(audio)
-            
+        with ImageSequenceClip(frames, fps=settings['fps']) as video_clip:
+            # 确保音频时长与视频对齐
+            if audio.duration > video_clip.duration:
+                # 截断音频 
+                audio = audio.subclipped(0, video_clip.duration)
+            elif audio.duration < video_clip.duration:
+                # 若音频短于视频，则静音填充
+                from numpy import zeros
+                silence = AudioArrayClip(
+                    zeros((1, int(audio.fps * (video_clip.duration - audio.duration)))), 
+                    fps=audio.fps
+                )
+                
+                silence = silence.with_start(audio.duration)
+                audio = CompositeAudioClip([audio, silence])
+
+            # 绑定音频到视频 
+            final_clip = video_clip.with_audio(audio)
+
             # 设置编码参数
             ffmpeg_params = []
-            
             if settings['use_cuda'] and self.cuda_available:
-                # GPU 相关参数
-                ffmpeg_params.extend([
-                    '-c:v', 'h264_nvenc',     # 明确指定NVENC编码器
-                    '-preset', 'medium',         # NVENC支持的预设：fast, medium, slow, hp, hq, bd, ll, llhq, llhp
-                    '-gpu', '0',
-                     
-            
-                ])
+                ffmpeg_params.extend(['-c:v', 'h264_nvenc', '-preset', 'medium', '-gpu', '0'])
             else:
-                # CPU 相关参数
-                ffmpeg_params.extend([
-                    '-c:v', 'libx264',
-                    '-preset', 'medium',
-                    '-crf', '23'
-                ])
-            
-            
-            clip.write_videofile(
+                ffmpeg_params.extend(['-c:v', 'libx264', '-preset', 'medium', '-crf', '23'])
+
+            # 写入文件
+            final_clip.write_videofile(
                 output_path,
-                codec=None,                   # 让ffmpeg_params完全控制编码器
+                codec=None,
                 audio_codec='aac',
                 threads=settings['threads'],
                 ffmpeg_params=ffmpeg_params,
-                logger=None,
-                verbose=False
+                logger=None
             )
 
     def generate_video(self, chapter_path: str, video_settings: Dict = None) -> str:
         """生成视频主流程"""
         self.stop_flag.clear()
         final_settings = {**self.default_settings, **(video_settings or {})}
+        
         final_settings['chapter_path'] = chapter_path
         output_path = os.path.join(chapter_path, "video.mp4")
         temp_files = []
@@ -177,7 +175,9 @@ class VideoService:
                 raise ValueError("无有效视频片段")
 
 
+          
             logger.info("发现 %d 个待处理片段", len(subdirs))
+            
 
             # 并行处理片段
             with ThreadPoolExecutor(max_workers=final_settings['threads']) as executor:
@@ -249,14 +249,15 @@ class VideoService:
                 os.remove(concat_list)
 
     def _apply_effects(self, image: Image.Image, time_val: float, 
-                      duration: float, settings: Dict) -> Image.Image:
+                      duration: float, settings: Dict, subdir: str) -> Image.Image:
         """应用所有视频特效"""
         try:
             effect_params = {
                 'output_size': self.default_settings['resolution'],
                 'fade_duration': settings.get('fade_duration', 1.0),
                 'use_pan': settings.get('use_pan', True),
-                'pan_range': settings.get('pan_range', (0.5, 0))
+                'pan_range': settings.get('pan_range', (0.5, 0)),
+                'segment_index': int(subdir) if subdir.isdigit() else 0
             }
             
             return ImageEffects.apply_effects(

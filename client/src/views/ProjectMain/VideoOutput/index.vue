@@ -21,6 +21,14 @@
     <!-- 视频配置表单 -->
     <div class="config-section">
       <el-form :model="videoSettings" label-width="180px">
+        <!-- 淡入淡出设置 -->
+        <el-form-item :label="t('videoOutput.fadeDuration')">
+          <el-input-number 
+            v-model="videoSettings.fade_duration" 
+            :min="0" 
+            :max="2"
+          />
+        </el-form-item>
         <!-- 画面平移设置 -->
         <el-form-item :label="t('videoOutput.usePan')">
           <el-switch v-model="videoSettings.use_pan" />
@@ -125,10 +133,11 @@ const selectedChapter = ref('')
 const videoSettings = ref<VideoSettings>({
   project_name: projectName,
   chapter_name:'',
+  fade_duration:1.2,
   use_pan: true,
-  pan_range: [0.5, 0],
-  fps: 24,
-  resolution:[1920,1080]
+  pan_range: [0.5, 0.5],
+  fps: 15,
+  resolution:[1024,1024]
 })
 
 // 状态管理

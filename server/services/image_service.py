@@ -138,6 +138,12 @@ class ImageService(SingletonService):
                 node['inputs']['t5xxl'] = enhanced_prompt
                
                 break
+            if node.get('class_type') == 'CLIPTextEncode':
+                origin_prompt=node['inputs']['text']
+                if 'bad' in origin_prompt or 'worst' in origin_prompt:#说明是负面提示词，不用更改
+                    continue
+                enhanced_prompt = f"{prompt}, {style}, masterpiece, best quality, 8K, HDR, highres"
+                node['inputs']['text'] = enhanced_prompt
         return workflow
         
     def _update_workflow_seed(self, workflow: Dict[str, Any], seed: int) -> Dict[str, Any]:
@@ -145,6 +151,9 @@ class ImageService(SingletonService):
         for node_id, node in workflow.items():
             if node.get('class_type') == 'RandomNoise':
                 node['inputs']['noise_seed'] = seed
+                break
+            if node.get('class_type') == 'KSampler':
+                node['inputs']['seed'] = seed
                 break
         return workflow
         
@@ -154,14 +163,8 @@ class ImageService(SingletonService):
             return workflow
             
         for node in workflow.values():
-            if node.get('class_type') == 'KSampler':
-                inputs = node.get('inputs', {})
-                if 'steps' in params:
-                    inputs['steps'] = params['steps']
-                if 'cfg' in params:
-                    inputs['cfg'] = params['cfg']
                     
-            elif node.get('class_type') == 'EmptyLatentImage':
+            if node.get('class_type') == 'EmptyLatentImage':
                 inputs = node.get('inputs', {})
                 if 'width' in params:
                     inputs['width'] = params['width']

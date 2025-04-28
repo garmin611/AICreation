@@ -1,3 +1,4 @@
+import signal
 import sys
 import os
 
@@ -55,9 +56,16 @@ app.include_router(admin_router)
 app.include_router(entity_router)
 app.include_router(video_router)
 
+def signal_handler(signal, frame):
+    print('You pressed Ctrl+C!')
+    sys.exit(0)
+
+
+
 if __name__ == '__main__':
     import uvicorn
     config = load_config()
+    signal.signal(signal.SIGINT, signal_handler)
     uvicorn.run("server.app:app", host=config.get('server', {}).get('host', '0.0.0.0'),
-                port=config.get('server', {}).get('port', 5000),
+                port=config.get('server', {}).get('port', 5001),
                 reload=True)

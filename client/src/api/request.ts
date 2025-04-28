@@ -1,12 +1,13 @@
 import type { AxiosResponse, AxiosRequestConfig } from 'axios'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import config from '@/config'
 
 const NETWORK_ERROR = '网络请求异常,请稍后重试...'
 
 // 创建一个axios实例对象
 const service = axios.create({
-    baseURL: "http://localhost:5000"
+    baseURL: config.baseApi
 })
 
 // 请求参数接口

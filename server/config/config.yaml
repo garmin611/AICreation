@@ -1,7 +1,7 @@
 comfyui:
-  api_url: http://192.168.10.9:8188
+  api_url: http://127.0.0.1:8000
 default_workflow:
-  name: flux-d-fp8-alimama.json
+  name: nunchaku-flux.1-dev.json
 llm:
   api_key: sk-jbmoetlepdnlssacqpvunssgsxyduuoihgymxvkfhwohtauc
   api_url: https://api.siliconflow.cn/v1

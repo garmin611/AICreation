@@ -281,8 +281,8 @@ const styleList = ref([
 
 // 图像设置
 const imageSettings = ref<ImageSettings>({
-  width: 512,
-  height: 512,
+  width: 768,
+  height: 768,
   style: 'anime'
 })
 

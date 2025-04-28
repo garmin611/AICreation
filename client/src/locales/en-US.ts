@@ -200,6 +200,7 @@ export default {
     width: 'Width',
     height: 'Height',
     generateVideo: 'Generate Video',
-    browserNotSupport: 'Your browser does not support video playback'
+    browserNotSupport: 'Your browser does not support video playback',
+    fadeDuration: 'Fade Duration'
   }
 }

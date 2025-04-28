@@ -194,6 +194,7 @@ export default {
     width: '宽度',
     height: '高度',
     generateVideo: '生成视频',
-    browserNotSupport: '您的浏览器不支持视频播放'
+    browserNotSupport: '您的浏览器不支持视频播放',
+    fadeDuration: '淡入淡出时长'
   }
 }
