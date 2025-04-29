@@ -165,7 +165,15 @@ export default {
     deleteConfirm: '确定要删除该实体吗？',
     deleteSuccess: '实体删除成功',
     deleteError: '实体删除失败',
-    operationFailed: '操作失败'
+    operationFailed: '操作失败',
+    createCharacter: '新增角色',
+    createCharacterTitle: '创建新角色',
+    createScene: '新增场景',
+    createSceneTitle: '创建新场景',
+    create: '创建',
+    nameRequired: '名称不能为空',
+    createSuccess: '创建成功',
+    createError: '创建失败'
   },
   menu: {
     characterLibrary: '角色库',

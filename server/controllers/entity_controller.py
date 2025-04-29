@@ -158,3 +158,42 @@ async def delete_scene(name: str, project_name: str = Query(..., description="�
     except Exception as e:
         logging.error(f"删除实体时出错: {str(e)}")
         return make_response(status='error', msg=str(e))
+
+@router.post('/character/create')
+async def create_character(request: Request):
+    """创建新角色实体"""
+    try:
+        data = await request.json()
+        project_name = data.get('project_name')
+        name = data.get('name')
+        attributes = data.get('attributes', {})
+        
+        if not project_name:
+            return make_response(status='error', msg='项目不存在')
+            
+        # 使用 kg_service 创建新实体，并自动保存
+        result = kg_service.new_entity(project_name, name, attributes, save_kg=True)
+        return make_response(data=result)
+    except Exception as e:
+        logging.error(f"创建实体时出错: {str(e)}")
+        return make_response(status='error', msg=str(e))
+
+@router.post('/scene/create')
+async def create_scene(request: Request):
+    """创建新场景"""
+    try:
+        data = await request.json()
+        project_name = data.get('project_name')
+        name = data.get('name')
+        prompt = data.get('prompt', "")
+        
+        if not project_name:
+            return make_response(status='error', msg='项目不存在')
+        
+        # 使用 scene_service 创建新场景，并自动保存
+        scene_dict = {name: prompt}
+        result = scene_service.update_scenes(project_name, scene_dict, force_update=True)
+        return make_response(data=result)
+    except Exception as e:
+        logging.error(f"创建场景时出错: {str(e)}")
+        return make_response(status='error', msg=str(e))

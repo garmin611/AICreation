@@ -2,9 +2,14 @@
     <div class="character-library">
         <h3>{{ t('menu.sceneLibrary') }}</h3>
 
-        <!-- 搜索框 -->
-        <div class="search-container">
-            <el-input v-model="searchQuery" :placeholder="t('common.search')" :prefix-icon="Search" clearable />
+        <!-- 搜索框和新增按钮 -->
+        <div class="header-container">
+            <div class="search-container">
+                <el-input v-model="searchQuery" :placeholder="t('common.search')" :prefix-icon="Search" clearable />
+            </div>
+            <el-button type="primary" @click="openCreateSceneDialog">
+                {{ t('entity.createScene') }}
+            </el-button>
         </div>
 
         <el-table v-loading="loading" :data="filteredCharacters" style="width: 100%" border>
@@ -42,6 +47,28 @@
             </el-table-column>
         </el-table>
 
+        <!-- 创建场景对话框 -->
+        <el-dialog v-model="createSceneVisible" :title="t('entity.createSceneTitle')" width="600px">
+            <div class="create-scene-form">
+                <el-form :model="newScene" label-width="120px">
+                    <el-form-item :label="t('entity.entityName')" required>
+                        <el-input v-model="newScene.name" />
+                    </el-form-item>
+                    <el-form-item :label="t('entity.description')">
+                        <el-input v-model="newScene.prompt" type="textarea" :rows="5" :placeholder="t('entity.description')" />
+                    </el-form-item>
+                </el-form>
+                <div class="dialog-footer">
+                    <el-button @click="createSceneVisible = false">
+                        {{ t('entity.cancel') }}
+                    </el-button>
+                    <el-button type="primary" @click="createScene">
+                        {{ t('entity.create') }}
+                    </el-button>
+                </div>
+            </div>
+        </el-dialog>
+
         <!-- 反推提示词对话框 -->
         <el-dialog v-model="reversePromptVisible" :title="t('entity.reversePromptTitle')" width="600px">
             <div class="reverse-prompt-dialog">
@@ -77,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -103,6 +130,13 @@ const reversePromptVisible = ref(false)
 const reversePromptText = ref('')
 const selectedImage = ref('')
 const currentScene = ref<Scene | null>(null)
+
+// 新增场景相关
+const createSceneVisible = ref(false)
+const newScene = reactive<Scene>({
+    name: '',
+    prompt: ''
+})
 
 // 根据搜索词过滤列表
 const filteredCharacters = computed(() => {
@@ -197,6 +231,40 @@ const deleteEntity = async (row: any) => {
     }
 }
 
+const openCreateSceneDialog = () => {
+    newScene.name = ''
+    newScene.prompt = ''
+    createSceneVisible.value = true
+}
+
+const createScene = async () => {
+    if (!newScene.name.trim()) {
+        ElMessage.error(t('entity.nameRequired'))
+        return
+    }
+    
+    try {
+        
+        const data = await entityApi.createScene(projectName.value, {
+            name: newScene.name,
+            prompt: newScene.prompt
+        })
+        
+
+        
+        if (data) {
+            ElMessage.success(t('entity.createSuccess') || '创建成功')
+            createSceneVisible.value = false
+            await fetchSceneList()
+        } else {
+            ElMessage.error(t('entity.createError') || '创建失败')
+        }
+    } catch (error) {
+  
+        ElMessage.error(typeof error === 'string' ? error : (error.message || t('entity.createError') || '创建失败'))
+    }
+}
+
 onMounted(() => {
     fetchSceneList()
 })
@@ -207,8 +275,14 @@ onMounted(() => {
     padding: 20px;
 }
 
-.search-container {
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 20px;
+}
+
+.search-container {
     max-width: 300px;
 }
 
@@ -320,5 +394,9 @@ onMounted(() => {
 
 :deep(.el-table__header .cell) {
     font-weight: bold;
+}
+
+.create-scene-form {
+    padding: 10px;
 }
 </style>

@@ -1,68 +1,60 @@
 import logging
 import os
 import time
-from moviepy import *
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor,as_completed,wait
-from PIL import Image
-from moviepy import ImageSequenceClip
-from moviepy import AudioFileClip
-from moviepy import CompositeAudioClip
-from moviepy import AudioArrayClip
-
 import subprocess
 import threading
 import asyncio
-from server.utils.image_effect import ImageEffects
 import gc
 from typing import List, Dict, Optional, Tuple
+from PIL import Image
+from moviepy import ImageSequenceClip, AudioFileClip, CompositeAudioClip, AudioArrayClip
+from server.utils.image_effect import ImageEffects
 
 logger = logging.getLogger(__name__)
 
 class VideoService:
-    """视频生成服务）"""
+    """视频生成服务"""
     
     def __init__(self):
         self.default_settings = {
             'resolution': (1024, 1024),
-            'fps': 15,
-            'threads': min(4, os.cpu_count()/1.5),
+            'fps': 20,
+            'threads': max(2,os.cpu_count()//2),
             'use_cuda': True,
             'codec': 'h264_nvenc',
-            'batch_size': 8,
-            'temp_dir': None,
-            'fade_duration': 1.2,  # 淡入淡出时长（秒），≤0时则不使用淡入淡出效果
+            'batch_size': max(2, os.cpu_count()//2),
+            'fade_duration': 1,  # 淡入淡出时长（秒）
             'use_pan': True,
             'pan_range': (0.5, 0.5),  # 横向移动原图可用范围的50%，纵向50%
         }
         self.stop_flag = threading.Event()
-        self._check_hardware()
-        # 添加进度追踪
+        self.cuda_available = self._check_hardware()
+        # 进度追踪
         self.progress = 0
         self.total_segments = 0
         self.current_task = None
         self.task_lock = threading.Lock()
 
-    def _check_hardware(self):
+    def _check_hardware(self) -> bool:
         """检查硬件编码支持"""
         try:
             result = subprocess.run(['ffmpeg', '-encoders'], capture_output=True, text=True)
-            self.cuda_available = 'h264_nvenc' in result.stdout
+            cuda_available = 'h264_nvenc' in result.stdout
      
-            if not self.cuda_available:
+            if not cuda_available:
                 logger.warning("NVENC不可用，切换至CPU模式")
                 self.default_settings.update({
                     'use_cuda': False,
-                    'codec': 'libx264',
-                    'threads': min(4, os.cpu_count()/1.5)
                 })
             else:
                 logger.info("NVENC可用，使用GPU模式")
+            return cuda_available
         except Exception as e:
             logger.error("硬件检测失败: %s", str(e))
-            self.cuda_available = False
+            return False
 
-    def _load_resources(self, subdir_path: str,resolution:Tuple[int,int]) -> tuple:
+    def _load_resources(self, subdir_path: str, resolution: Tuple[int, int]) -> tuple:
         """加载图片和音频资源"""
         image_path = os.path.join(subdir_path, "image.png")
         audio_path = os.path.join(subdir_path, "audio.mp3")
@@ -80,7 +72,7 @@ class VideoService:
                 img = img.convert('RGB')
             image = img.resize(resolution, Image.LANCZOS)
 
-        # 加载音频并确保它是AudioFileClip对象
+        # 加载音频
         audio = AudioFileClip(audio_path)
         return image, audio
 
@@ -91,7 +83,7 @@ class VideoService:
         frames = []
 
         try:
-            # 执行耗时的资源加载操作在单独的线程中
+            # 在线程中加载资源
             loop = asyncio.get_running_loop()
             image, audio = await loop.run_in_executor(
                 None, 
@@ -101,11 +93,11 @@ class VideoService:
             duration = audio.duration
             total_frames = int(duration * settings['fps'])
 
-            # 生成帧数据
+            # 批量生成帧
             for i in range(total_frames):
                 if self.stop_flag.is_set():
                     break
-                # 在单独的线程中执行图像处理
+                # 线程处理图像
                 frame = await loop.run_in_executor(
                     None,
                     lambda: self._apply_effects(image.copy(), i/settings['fps'], duration, settings, subdir)
@@ -113,13 +105,14 @@ class VideoService:
                 frames.append(np.array(frame))
                 frame.close()
 
-            # 写入临时文件
+            # 写入视频
             await loop.run_in_executor(
                 None,
                 lambda: self._write_temp_video(frames, audio, temp_file, settings)
             )
             
-            logger.info("完成片段 %s | 耗时: %.1fs | 大小: %s", subdir, time.time()-start_time, self._format_size(os.path.getsize(temp_file)))
+            logger.info("完成片段 %s | 耗时: %.1fs | 大小: %.1fMB", 
+                       subdir, time.time()-start_time, os.path.getsize(temp_file)/1024/1024)
             
             # 更新进度
             with self.task_lock:
@@ -149,7 +142,6 @@ class VideoService:
         with ImageSequenceClip(frames, fps=settings['fps']) as video_clip:
             # 确保音频时长与视频对齐
             if audio.duration > video_clip.duration:
-                # 截断音频 
                 audio = audio.subclipped(0, video_clip.duration)
             elif audio.duration < video_clip.duration:
                 # 若音频短于视频，则静音填充
@@ -158,16 +150,15 @@ class VideoService:
                     zeros((1, int(audio.fps * (video_clip.duration - audio.duration)))), 
                     fps=audio.fps
                 )
-                
                 silence = silence.with_start(audio.duration)
                 audio = CompositeAudioClip([audio, silence])
 
-            # 绑定音频到视频 
+            # 绑定音频
             final_clip = video_clip.with_audio(audio)
 
             # 设置编码参数
             ffmpeg_params = []
-            if settings['use_cuda'] and self.cuda_available:
+            if settings.get('use_cuda', False) and self.cuda_available:
                 ffmpeg_params.extend(['-c:v', 'h264_nvenc', '-preset', 'medium', '-gpu', '0'])
             else:
                 ffmpeg_params.extend(['-c:v', 'libx264', '-preset', 'medium', '-crf', '23'])
@@ -177,7 +168,7 @@ class VideoService:
                 output_path,
                 codec=None,
                 audio_codec='aac',
-                threads=settings['threads'],
+                threads=settings.get('threads', 4),
                 ffmpeg_params=ffmpeg_params,
                 logger=None
             )
@@ -209,20 +200,18 @@ class VideoService:
           
             logger.info("发现 %d 个待处理片段", len(subdirs))
             
-            # 并行处理片段（使用asyncio.gather）
-            tasks = []
-            for batch in self._chunk_list(subdirs, final_settings['batch_size']):
-                for subdir in batch:
-                    tasks.append(self._process_segment(subdir, chapter_path, final_settings))
-                    
+            # 分批处理片段
+            batch_size = final_settings.get('batch_size', 8)
+            for i in range(0, len(subdirs), batch_size):
+                batch = subdirs[i:i+batch_size]
+                tasks = [self._process_segment(subdir, chapter_path, final_settings) for subdir in batch]
+                
                 # 等待当前批次完成
                 batch_results = await asyncio.gather(*tasks)
-                tasks = []  # 清空任务列表，准备下一批
                 
                 # 收集结果
-                for result in batch_results:
-                    if result:
-                        temp_files.append(result)
+                valid_results = [r for r in batch_results if r]
+                temp_files.extend(valid_results)
                 
                 # 检查是否取消
                 if self.stop_flag.is_set():
@@ -238,14 +227,14 @@ class VideoService:
             with self.task_lock:
                 self.current_task = "合并视频中"
             
-            # 在事件循环中执行合并操作
+            # 执行合并
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
                 None,
                 lambda: self._merge_videos(temp_files, output_path, final_settings)
             )
             
-            # 标记任务完成
+            # 标记完成
             with self.task_lock:
                 self.current_task = "已完成"
                 self.progress = self.total_segments
@@ -256,21 +245,20 @@ class VideoService:
             logger.error("视频生成失败: %s", str(e))
             raise
         finally:
-            # 使用异步方法清理临时文件
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: self._cleanup_temp_files(temp_files))
+            # 清理临时文件
+            if temp_files:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, lambda: self._cleanup_temp_files(temp_files))
 
     def _merge_videos(self, temp_files: List[str], output_path: str, settings: Dict) -> str:
         """合并视频片段"""
         concat_list = os.path.join(os.path.dirname(output_path), "concat.txt")
        
         try:
-            # 生成合并列表，使用UTF-8编码写入
+            # 生成合并列表
             with open(concat_list, 'w', encoding='utf-8') as f:
                 for file in temp_files:
-                    file_path = os.path.abspath(file)
-                    # 替换反斜杠为正斜杠，避免转义问题
-                    file_path = file_path.replace('\\', '/')
+                    file_path = os.path.abspath(file).replace('\\', '/')
                     f.write(f"file '{file_path}'\n")
             
             # 构建FFmpeg命令
@@ -283,7 +271,7 @@ class VideoService:
                 '-movflags', '+faststart',
                 '-y', output_path
             ]
-            if settings.get('use_cuda', False):
+            if settings.get('use_cuda', False) and self.cuda_available:
                 cmd[1:1] = ['-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda']
       
             # 执行命令
@@ -292,7 +280,7 @@ class VideoService:
             return output_path
             
         except subprocess.CalledProcessError as e:
-            # 根据系统编码解码错误信息
+            # 解码错误信息
             import locale
             encoding = locale.getpreferredencoding()
             error_msg = e.stderr.decode(encoding, errors='replace')
@@ -304,10 +292,10 @@ class VideoService:
 
     def _apply_effects(self, image: Image.Image, time_val: float, 
                       duration: float, settings: Dict, subdir: str) -> Image.Image:
-        """应用所有视频特效"""
+        """应用视频特效"""
         try:
             effect_params = {
-                'output_size': self.default_settings['resolution'],
+                'output_size': settings.get('resolution', self.default_settings['resolution']),
                 'fade_duration': settings.get('fade_duration', 1.0),
                 'use_pan': settings.get('use_pan', True),
                 'pan_range': settings.get('pan_range', (0.5, 0)),
@@ -323,7 +311,7 @@ class VideoService:
 
     def get_progress(self) -> Dict:
         """获取当前视频生成进度"""
-        with self.task_lock:  # 快速获取和释放锁
+        with self.task_lock:
             total = max(1, self.total_segments)
             percentage = int((self.progress / total) * 100)
             return {
@@ -350,20 +338,7 @@ class VideoService:
                 
     async def _cleanup_temp_files_async(self, files: List[str]):
         """异步清理临时文件"""
+        if not files:
+            return
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, lambda: self._cleanup_temp_files(files))
-
-    @staticmethod
-    def _chunk_list(items: List, size: int):
-        """列表分块"""
-        for i in range(0, len(items), size):
-            yield items[i:i + size]
-
-    @staticmethod
-    def _format_size(size_bytes: int) -> str:
-        """格式化文件大小"""
-        for unit in ('B', 'KB', 'MB', 'GB'):
-            if size_bytes < 1024:
-                return f"{size_bytes:.1f}{unit}"
-            size_bytes /= 1024
-        return f"{size_bytes:.1f}TB"

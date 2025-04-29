@@ -2,14 +2,19 @@
   <div class="character-library">
     <h3>{{ t('menu.characterLibrary') }}</h3>
     
-    <!-- 搜索框 -->
-    <div class="search-container">
-      <el-input
-        v-model="searchQuery"
-        :placeholder="t('common.search')"
-        :prefix-icon="Search"
-        clearable
-      />
+    <!-- 搜索框和新增按钮 -->
+    <div class="header-container">
+      <div class="search-container">
+        <el-input
+          v-model="searchQuery"
+          :placeholder="t('common.search')"
+          :prefix-icon="Search"
+          clearable
+        />
+      </div>
+      <el-button type="primary" @click="openCreateCharacterDialog">
+        {{ t('entity.createCharacter') }}
+      </el-button>
     </div>
 
     <el-table
@@ -102,6 +107,45 @@
       </el-table-column>
     </el-table>
 
+    <!-- 创建角色对话框 -->
+    <el-dialog
+      v-model="createCharacterVisible"
+      :title="t('entity.createCharacterTitle')"
+      width="600px"
+    >
+      <div class="create-character-form">
+        <el-form :model="newCharacter" label-width="120px">
+          <el-form-item :label="t('entity.entityName')" required>
+            <el-input v-model="newCharacter.name" />
+          </el-form-item>
+          <el-form-item :label="t('entity.role')">
+            <el-input 
+              v-model="newCharacter.attributes.role"
+              type="textarea"
+              :rows="2"
+              :placeholder="t('entity.role')"
+            />
+          </el-form-item>
+          <el-form-item :label="t('entity.description')">
+            <el-input 
+              v-model="newCharacter.attributes.description"
+              type="textarea"
+              :rows="5"
+              :placeholder="t('entity.description')"
+            />
+          </el-form-item>
+        </el-form>
+        <div class="dialog-footer">
+          <el-button @click="createCharacterVisible = false">
+            {{ t('entity.cancel') }}
+          </el-button>
+          <el-button type="primary" @click="createCharacter">
+            {{ t('entity.create') }}
+          </el-button>
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 反推提示词对话框 -->
     <el-dialog
       v-model="reversePromptVisible"
@@ -144,7 +188,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -174,6 +218,16 @@ const reversePromptText = ref('')
 const selectedImage = ref('')
 const currentCharacter = ref<Character | null>(null)
 
+// 新增角色相关
+const createCharacterVisible = ref(false)
+const newCharacter = reactive<Character>({
+  name: '',
+  attributes: {
+    role: '',
+    description: ''
+  }
+})
+
 // 根据搜索词过滤角色列表
 const filteredCharacters = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
@@ -192,7 +246,7 @@ const fetchCharacters = async () => {
   loading.value = true
   try {
     const data = await entityApi.getCharacterList(projectName.value)
-    console.log(data)
+  
     characters.value = data.characters
     lockedEntities.value = data.locked_entities
   } catch (error) {
@@ -303,6 +357,41 @@ const deleteEntity = async (row: any) => {
   }
 }
 
+const openCreateCharacterDialog = () => {
+  newCharacter.name = ''
+  newCharacter.attributes.role = ''
+  newCharacter.attributes.description = ''
+  createCharacterVisible.value = true
+}
+
+const createCharacter = async () => {
+  if (!newCharacter.name.trim()) {
+    ElMessage.error(t('entity.nameRequired'))
+    return
+  }
+  
+  try {
+    
+    const data = await entityApi.createCharacter(projectName.value, {
+      name: newCharacter.name,
+      attributes: newCharacter.attributes
+    })
+    
+    
+    
+    if (data) {
+      ElMessage.success(t('entity.createSuccess') || '创建成功')
+      createCharacterVisible.value = false
+      await fetchCharacters()
+    } else {
+      ElMessage.error(t('entity.createError') || '创建失败')
+    }
+  } catch (error) {
+
+    ElMessage.error(typeof error === 'string' ? error : (error.message || t('entity.createError') || '创建失败'))
+  }
+}
+
 onMounted(() => {
   fetchCharacters()
 })
@@ -313,8 +402,14 @@ onMounted(() => {
   padding: 20px;
 }
 
-.search-container {
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
+}
+
+.search-container {
   max-width: 300px;
 }
 
@@ -414,6 +509,10 @@ onMounted(() => {
   margin-top: 20px;
 }
 
+.create-character-form {
+  padding: 10px;
+}
+
 :deep(.el-table__cell) {
   padding: 8px 0;
 }
@@ -428,4 +527,3 @@ onMounted(() => {
   font-weight: bold;
 }
 </style>
-@/api/entity_api

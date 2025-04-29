@@ -171,7 +171,15 @@ export default {
     deleteConfirm: 'Are you sure you want to delete this entity?',
     deleteSuccess: 'Entity deleted successfully',
     deleteError: 'Failed to delete Entity',
-    operationFailed: 'Operation failed'
+    operationFailed: 'Operation failed',
+    createCharacter: 'Add Character',
+    createCharacterTitle: 'Create New Character',
+    createScene: 'Add Scene',
+    createSceneTitle: 'Create New Scene',
+    create: 'Create',
+    nameRequired: 'Name is required',
+    createSuccess: 'Created successfully',
+    createError: 'Failed to create'
   },
   success: {
     saved: 'Saved successfully',

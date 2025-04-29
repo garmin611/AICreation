@@ -17,10 +17,30 @@ export interface UpdateSceneParams {
   prompt: string
 }
 
+export interface CreateCharacterParams {
+  name: string
+  attributes: CharacterAttributes
+}
+
+export interface CreateSceneParams {
+  name: string
+  prompt: string
+}
+
 export const entityApi = {
   // 获取角色列表
   getCharacterList(projectName: string) {
     return request.get('entity/character/list', { project_name: projectName })
+  },
+  
+  // 创建角色
+  createCharacter(projectName: string, params: CreateCharacterParams) {
+    console.log('API调用 - 创建角色:', { projectName, params })
+    return request.post('entity/character/create', { 
+      project_name: projectName,
+      name: params.name,
+      attributes: params.attributes
+    })
   },
   
   // 更新角色
@@ -45,12 +65,22 @@ export const entityApi = {
     return request.delete(`entity/character/${entityName}`, { project_name: projectName })
   },
 
-  // 获取角色列表
+  // 获取场景列表
   getSceneList(projectName: string) {
     return request.get('entity/scene/list', { project_name: projectName })
   },
   
-  // 更新角色
+  // 创建场景
+  createScene(projectName: string, params: CreateSceneParams) {
+    console.log('API调用 - 创建场景:', { projectName, params })
+    return request.post('entity/scene/create', { 
+      project_name: projectName,
+      name: params.name,
+      prompt: params.prompt
+    })
+  },
+  
+  // 更新场景
   updateScene(projectName: string, params: UpdateSceneParams) {
     return request.post('entity/scene/update', { 
       project_name: projectName,
@@ -58,9 +88,8 @@ export const entityApi = {
       prompt: params.prompt
     })
   },
-  
 
-  // 删除角色
+  // 删除场景
   deleteScene(projectName: string, entityName: string) {
     return request.delete(`entity/scene/${entityName}`, { project_name: projectName })
   }

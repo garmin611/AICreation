@@ -153,10 +153,10 @@ const selectedChapter = ref('')
 const videoSettings = ref<VideoSettings>({
   project_name: projectName,
   chapter_name:'',
-  fade_duration:1.2,
+  fade_duration:1,
   use_pan: true,
   pan_range: [0.5, 0.5],
-  fps: 15,
+  fps: 20,
   resolution:[1024,1024]
 })
 
