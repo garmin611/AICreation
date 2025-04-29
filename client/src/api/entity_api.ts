@@ -35,7 +35,6 @@ export const entityApi = {
   
   // 创建角色
   createCharacter(projectName: string, params: CreateCharacterParams) {
-    console.log('API调用 - 创建角色:', { projectName, params })
     return request.post('entity/character/create', { 
       project_name: projectName,
       name: params.name,
@@ -72,7 +71,6 @@ export const entityApi = {
   
   // 创建场景
   createScene(projectName: string, params: CreateSceneParams) {
-    console.log('API调用 - 创建场景:', { projectName, params })
     return request.post('entity/scene/create', { 
       project_name: projectName,
       name: params.name,
