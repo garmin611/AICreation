@@ -93,6 +93,25 @@
       >
         {{ t('videoOutput.generateVideo') }}
       </el-button>
+      
+      <el-button 
+        v-if="isGenerating"
+        type="danger" 
+        @click="handleCancelGeneration"
+      >
+        {{ t('videoOutput.cancelGeneration') }}
+      </el-button>
+    </div>
+    
+    <!-- 进度条 -->
+    <div v-if="isGenerating" class="progress-section">
+      <div class="progress-info">
+        <span>{{ progressInfo }}</span>
+      </div>
+      <el-progress 
+        :percentage="progressPercentage" 
+        :status="progressStatus"
+      />
     </div>
 
     <div class="video-preview" v-if="videoUrl">
@@ -112,13 +131,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { chapterApi } from '@/api/chapter_api'
 import { videoApi } from '@/api/video_api'
-import type { VideoSettings } from '@/types/video'
+import type { VideoSettings, VideoProgress } from '@/types/video'
 import { getResourcePath } from '@/utils/resourcePath'
 import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const projectName = route.params.name as string
@@ -145,28 +165,102 @@ const isGenerating = ref(false)
 const videoUrl = ref('')
 const errorMessage = ref('')
 
+// 进度相关
+const progressData = ref<VideoProgress>({
+  progress: 0,
+  total: 0,
+  percentage: 0,
+  current_task: null
+})
+const progressInterval = ref<number | null>(null)
+const progressPercentage = computed(() => progressData.value.percentage)
+const progressInfo = computed(() => {
+  if (!progressData.value.current_task) return ''
+  return `${progressData.value.current_task} (${progressData.value.progress}/${progressData.value.total})`
+})
+const progressStatus = computed(() => {
+  if (progressData.value.percentage >= 100) return 'success'
+  return ''
+})
 
+// 开始定时获取进度
+const startProgressTracking = () => {
+  // 立即获取一次进度
+  fetchProgress()
+  
+  // 设置定时器每秒获取一次进度
+  progressInterval.value = window.setInterval(() => {
+    fetchProgress()
+  }, 1000)
+}
+
+// 停止进度跟踪
+const stopProgressTracking = () => {
+  if (progressInterval.value) {
+    clearInterval(progressInterval.value)
+    progressInterval.value = null
+    progressData.value = {
+      progress: 0,
+      total: 0,
+      percentage: 0,
+      current_task: null
+    }
+  }
+}
+
+// 获取进度
+const fetchProgress = async () => {
+  try {
+    const res = await videoApi.getGenerationProgress()
+  
+    if (res) {
+      
+      progressData.value = res as VideoProgress
+      
+      // 如果进度已完成并且当前正在生成，更新状态并停止跟踪
+      if (progressData.value.percentage >= 100 && isGenerating.value) {
+        isGenerating.value = false
+        stopProgressTracking()
+        handleChapterChange() // 刷新视频
+        ElMessage.success(t('videoOutput.generationComplete'))
+      }
+    }
+  } catch (error) {
+    console.error('获取进度失败', error)
+  }
+}
 
 // 获取章节列表
 // 在组件中修改视频生成处理逻辑
 const handleGenerateVideo = async () => {
   try {
-  
     videoSettings.value.chapter_name = selectedChapter.value;
-    // 清除空值字段
-
+    
     isGenerating.value = true;
-    const res=await videoApi.generateVideo(
-      videoSettings .value 
-    )
-    if (res) {
-      handleChapterChange();
-      isGenerating.value = false;
-    }
+    // 开始跟踪进度
+    startProgressTracking()
+    
+    // 发起视频生成请求
+    await videoApi.generateVideo(videoSettings.value)
   } catch (error) {
     // 错误处理
     console.log(error)
     isGenerating.value = false;
+    stopProgressTracking()
+    ElMessage.error(t('error.generateFailed'))
+  }
+}
+
+// 取消视频生成
+const handleCancelGeneration = async () => {
+  try {
+    await videoApi.cancelGeneration()
+    ElMessage.info(t('videoOutput.generationCancelled'))
+    isGenerating.value = false
+    stopProgressTracking()
+  } catch (error) {
+    console.error('取消生成失败', error)
+    ElMessage.error(t('videoOutput.cancelFailed'))
   }
 }
 
@@ -183,19 +277,23 @@ const fetchChapters = async () => {
     }
     
   } catch (error) {
-    errorMessage.value = '获取章节列表失败'
+    errorMessage.value = t('error.fetchChapterListFailed')
   }
 }
 
 // 章节变更处理
 const handleChapterChange = () => {
-  videoUrl.value = getResourcePath(projectName, selectedChapter.value,0,'video')
+  videoUrl.value = getResourcePath(projectName, selectedChapter.value, 0, 'video')
 }
+
+// 组件卸载前清理定时器
+onBeforeUnmount(() => {
+  stopProgressTracking()
+})
 
 // 初始化
 onMounted(() => {
   fetchChapters()
-
 })
 </script>
 
@@ -217,6 +315,22 @@ onMounted(() => {
   border-radius: 4px;
 }
 
+.progress-section {
+  margin: 20px 0;
+  padding: 15px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background-color: var(--el-fill-color-light);
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+}
+
 .video-preview {
   margin-top: 24px;
 }
@@ -235,5 +349,7 @@ onMounted(() => {
 
 .action-section {
   margin: 16px 0;
+  display: flex;
+  gap: 10px;
 }
 </style>

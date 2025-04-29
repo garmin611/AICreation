@@ -185,8 +185,8 @@ export default {
   videoOutput: {
     title: '视频输出',
     chapterSelect: '请选择章节',
-    usePan: '启用画面平移',
-    panRange: '平移范围',
+    usePan: '启用镜头效果',
+    panRange: '镜头平移范围',
     panRangeX: '横向平移范围',
     panRangeY: '纵向平移范围',
     fps: '帧率',
@@ -195,6 +195,11 @@ export default {
     height: '高度',
     generateVideo: '生成视频',
     browserNotSupport: '您的浏览器不支持视频播放',
-    fadeDuration: '淡入淡出时长'
+    fadeDuration: '淡入淡出时长',
+    cancelGeneration: '取消生成',
+    generationComplete: '视频生成完成',
+    generationCancelled: '视频生成已取消',
+    cancelFailed: '取消失败',
+    generatingVideo: '正在生成视频'
   }
 }

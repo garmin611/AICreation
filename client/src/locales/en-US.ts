@@ -201,6 +201,12 @@ export default {
     height: 'Height',
     generateVideo: 'Generate Video',
     browserNotSupport: 'Your browser does not support video playback',
-    fadeDuration: 'Fade Duration'
+    fadeDuration: 'Fade Duration',
+    cancelGeneration: 'Cancel Generation',
+    generationComplete: 'Video Generation Completed',
+    generationCancelled: 'Video Generation Cancelled',
+    cancelFailed: 'Cancel Failed',
+    generatingVideo: 'Generating Video',
+    progressTrackingFailed: 'Progress Tracking Failed',
   }
 }

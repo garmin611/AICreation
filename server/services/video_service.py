@@ -12,6 +12,7 @@ from moviepy import AudioArrayClip
 
 import subprocess
 import threading
+import asyncio
 from server.utils.image_effect import ImageEffects
 import gc
 from typing import List, Dict, Optional, Tuple
@@ -32,10 +33,15 @@ class VideoService:
             'temp_dir': None,
             'fade_duration': 1.2,  # 淡入淡出时长（秒），≤0时则不使用淡入淡出效果
             'use_pan': True,
-            'pan_range': (0.5, 0),  # 横向移动原图可用范围的50%，纵向0%
+            'pan_range': (0.5, 0.5),  # 横向移动原图可用范围的50%，纵向50%
         }
         self.stop_flag = threading.Event()
         self._check_hardware()
+        # 添加进度追踪
+        self.progress = 0
+        self.total_segments = 0
+        self.current_task = None
+        self.task_lock = threading.Lock()
 
     def _check_hardware(self):
         """检查硬件编码支持"""
@@ -78,29 +84,47 @@ class VideoService:
         audio = AudioFileClip(audio_path)
         return image, audio
 
-    def _process_segment(self, subdir: str, temp_dir: str, settings: Dict) -> Optional[str]:
+    async def _process_segment(self, subdir: str, temp_dir: str, settings: Dict) -> Optional[str]:
         """处理单个视频片段"""
         temp_file = os.path.join(temp_dir, f"vid_{subdir}_{os.getpid()}.mp4")
         start_time = time.time()
         frames = []
 
         try:
-            # 加载资源
-            image, audio = self._load_resources(os.path.join(settings['chapter_path'], subdir),settings['resolution'])
+            # 执行耗时的资源加载操作在单独的线程中
+            loop = asyncio.get_running_loop()
+            image, audio = await loop.run_in_executor(
+                None, 
+                lambda: self._load_resources(os.path.join(settings['chapter_path'], subdir), settings['resolution'])
+            )
+            
             duration = audio.duration
             total_frames = int(duration * settings['fps'])
 
-            # 生成帧数据（保持不变）
+            # 生成帧数据
             for i in range(total_frames):
                 if self.stop_flag.is_set():
                     break
-                frame = self._apply_effects(image.copy(), i/settings['fps'], duration, settings, subdir)
+                # 在单独的线程中执行图像处理
+                frame = await loop.run_in_executor(
+                    None,
+                    lambda: self._apply_effects(image.copy(), i/settings['fps'], duration, settings, subdir)
+                )
                 frames.append(np.array(frame))
                 frame.close()
 
-            # 写入临时文件（使用修改后的 _write_temp_video）
-            self._write_temp_video(frames, audio, temp_file, settings)
+            # 写入临时文件
+            await loop.run_in_executor(
+                None,
+                lambda: self._write_temp_video(frames, audio, temp_file, settings)
+            )
+            
             logger.info("完成片段 %s | 耗时: %.1fs | 大小: %s", subdir, time.time()-start_time, self._format_size(os.path.getsize(temp_file)))
+            
+            # 更新进度
+            with self.task_lock:
+                self.progress += 1
+                
             return temp_file
 
         except Exception as e:
@@ -118,7 +142,10 @@ class VideoService:
             gc.collect()
 
     def _write_temp_video(self, frames: list, audio: AudioFileClip, output_path: str, settings: Dict):
-        """安全写入视频片段"""
+        """
+        安全写入视频片段
+        使用临时文件来暂存，避免内存占用过高
+        """
         with ImageSequenceClip(frames, fps=settings['fps']) as video_clip:
             # 确保音频时长与视频对齐
             if audio.duration > video_clip.duration:
@@ -155,7 +182,7 @@ class VideoService:
                 logger=None
             )
 
-    def generate_video(self, chapter_path: str, video_settings: Dict = None) -> str:
+    async def generate_video(self, chapter_path: str, video_settings: Dict = None) -> str:
         """生成视频主流程"""
         self.stop_flag.clear()
         final_settings = {**self.default_settings, **(video_settings or {})}
@@ -174,37 +201,64 @@ class VideoService:
             if not subdirs:
                 raise ValueError("无有效视频片段")
 
-
+            # 初始化进度信息
+            with self.task_lock:
+                self.progress = 0
+                self.total_segments = len(subdirs)
+                self.current_task = f"{os.path.basename(chapter_path)}"
           
             logger.info("发现 %d 个待处理片段", len(subdirs))
             
-
-            # 并行处理片段
-            with ThreadPoolExecutor(max_workers=final_settings['threads']) as executor:
-                futures = []
-                for batch in self._chunk_list(subdirs, final_settings['batch_size']):
-                    futures.extend(
-                        executor.submit(self._process_segment, subdir,chapter_path, final_settings)
-                        for subdir in batch
-                    )
-
+            # 并行处理片段（使用asyncio.gather）
+            tasks = []
+            for batch in self._chunk_list(subdirs, final_settings['batch_size']):
+                for subdir in batch:
+                    tasks.append(self._process_segment(subdir, chapter_path, final_settings))
+                    
+                # 等待当前批次完成
+                batch_results = await asyncio.gather(*tasks)
+                tasks = []  # 清空任务列表，准备下一批
+                
                 # 收集结果
-                for future in as_completed(futures):
-                    result = future.result()
+                for result in batch_results:
                     if result:
                         temp_files.append(result)
-                        logger.info("进度: %d/%d", len(temp_files), len(subdirs))
-
+                
+                # 检查是否取消
+                if self.stop_flag.is_set():
+                    await self._cleanup_temp_files_async(temp_files)
+                    logger.info("视频生成被用户取消")
+                    raise ValueError("视频生成被用户取消")
+                        
             # 合并临时文件
             if not temp_files:
                 raise ValueError("没有生成有效视频片段")
-            return self._merge_videos(temp_files, output_path, final_settings)
+                
+            # 更新进度状态为合并阶段
+            with self.task_lock:
+                self.current_task = "合并视频中"
+            
+            # 在事件循环中执行合并操作
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: self._merge_videos(temp_files, output_path, final_settings)
+            )
+            
+            # 标记任务完成
+            with self.task_lock:
+                self.current_task = "已完成"
+                self.progress = self.total_segments
+                
+            return result
 
         except Exception as e:
             logger.error("视频生成失败: %s", str(e))
             raise
         finally:
-            self._cleanup_temp_files(temp_files)
+            # 使用异步方法清理临时文件
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, lambda: self._cleanup_temp_files(temp_files))
 
     def _merge_videos(self, temp_files: List[str], output_path: str, settings: Dict) -> str:
         """合并视频片段"""
@@ -267,6 +321,22 @@ class VideoService:
             logger.error("特效处理失败: %s", str(e))
             raise
 
+    def get_progress(self) -> Dict:
+        """获取当前视频生成进度"""
+        with self.task_lock:  # 快速获取和释放锁
+            total = max(1, self.total_segments)
+            percentage = int((self.progress / total) * 100)
+            return {
+                "progress": self.progress,
+                "total": total,
+                "percentage": percentage,
+                "current_task": self.current_task
+            }
+            
+    def cancel_generation(self) -> bool:
+        """取消视频生成"""
+        self.stop_flag.set()
+        return True
 
     def _cleanup_temp_files(self, files: List[str]):
         """清理临时文件"""
@@ -277,6 +347,11 @@ class VideoService:
                     logger.debug("已清理: %s", f_path)
             except Exception as e:
                 logger.warning("清理失败 %s: %s", f_path, str(e))
+                
+    async def _cleanup_temp_files_async(self, files: List[str]):
+        """异步清理临时文件"""
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, lambda: self._cleanup_temp_files(files))
 
     @staticmethod
     def _chunk_list(items: List, size: int):
