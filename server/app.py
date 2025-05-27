@@ -57,7 +57,6 @@ app.include_router(entity_router)
 app.include_router(video_router)
 
 def signal_handler(signal, frame):
-    print('You pressed Ctrl+C!')
     sys.exit(0)
 
 

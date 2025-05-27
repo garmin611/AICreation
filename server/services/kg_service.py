@@ -759,7 +759,7 @@ class KGService(SingletonService):
 
     def _find_shortest_path(self, graph: dict, start: str, end: str) -> List[dict]:
         """
-        查找最短路径
+        广度优先搜索查找最短路径
 
         参数:
             graph (dict): 图结构

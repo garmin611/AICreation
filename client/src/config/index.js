@@ -9,10 +9,10 @@ const env = 'local'
 
 const EnvConfig = {
     local: {
-        baseApi: 'http://localhost:5001/',
+        baseApi: 'http://localhost:5001',
     },
     prod: {
-        baseApi: 'http://localhost:5001/',
+        baseApi: 'http://localhost:5001',
 
     },
 }

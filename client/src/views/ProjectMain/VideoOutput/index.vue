@@ -157,7 +157,7 @@ const videoSettings = ref<VideoSettings>({
   use_pan: true,
   pan_range: [0.5, 0.5],
   fps: 20,
-  resolution:[1024,1024]
+  resolution:[768,768]
 })
 
 // 状态管理

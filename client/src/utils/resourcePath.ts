@@ -18,13 +18,13 @@ export const getResourcePath = (
   let endpoint=''
   switch (type) {
     case 'image':
-      endpoint = 'media/get_image'
+      endpoint = '/media/get_image'
       break;
     case 'audio':
-      endpoint = 'media/get_audio'
+      endpoint = '/media/get_audio'
       break;
     case 'video':
-      endpoint='video/get_video'
+      endpoint='/video/get_video'
       break;
   }
   if(type!=='video')

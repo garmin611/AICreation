@@ -119,19 +119,6 @@ class ImageEffects:
         # 使用正弦缓动函数
         return 0.5 * (1 - math.cos(math.pi * progress))
 
-    @staticmethod
-    def _auto_scale(orig_img: Image.Image, target_w: int, target_h: int, pan_range: tuple) -> Image.Image:
-        """智能缩放算法（保证可移动空间）"""
-        # 计算需要的最小缩放比例
-        scale_x = (target_w * (1 + pan_range[0])) / orig_img.width
-        scale_y = (target_h * (1 + pan_range[1])) / orig_img.height
-        scale = max(scale_x, scale_y)
-        
-        # 保持宽高比缩放
-        new_width = int(orig_img.width * scale)
-        new_height = int(orig_img.height * scale)
-        # 使用BICUBIC插值提高性能，保持图像质量
-        return orig_img.resize((new_width, new_height), Image.BICUBIC)
 
     @classmethod
     def apply_effects(cls, image: Image.Image, time_val: float, duration: float, params: Dict) -> Image.Image:
