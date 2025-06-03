@@ -637,7 +637,7 @@ const generateSelectedAudio = async (selectedRows:Scene[]) => {
       chapter_name: chapterName.value,
       audioSettings: {
         voice: audioSettings.value.narrator,
-        rate: `${audioSettings.value.speakingRate}%`
+        rate: `${audioSettings.value.speakingRate>=0?'+':''}${audioSettings.value.speakingRate}%`
       },
       prompts: scenes.map(scene => ({
         id: scene.id,

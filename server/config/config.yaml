@@ -5,7 +5,7 @@ default_workflow:
 llm:
   api_key: sk-jbmoetlepdnlssacqpvunssgsxyduuoihgymxvkfhwohtauc
   api_url: https://api.siliconflow.cn/v1
-  model_name: deepseek-ai/DeepSeek-V2.5
+  model_name: deepseek-ai/DeepSeek-V3
   proxies: null
   verify_ssl: false
   window_size: 4

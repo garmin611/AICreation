@@ -26,7 +26,7 @@ export default {
     noDataToProcess: '没有数据可处理'
   },
   header: {
-    logo: 'AI 工厂'
+    logo: 'AI 创作'
   },
   notFound: {
     title: '404',

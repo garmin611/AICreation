@@ -80,6 +80,7 @@ const toggleTheme = () => {
 
     .lang-switch {
       display: flex;
+
       align-items: center;
       gap: 8px;
 

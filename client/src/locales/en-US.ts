@@ -26,7 +26,7 @@ export default {
     noDataToProcess: 'No data to process'
   },
   header: {
-    logo: 'AI Factory'
+    logo: 'AI Creation'
   },
   notFound: {
     title: '404',
