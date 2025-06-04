@@ -1,328 +1,129 @@
+import logging
 import os
 import json
+import asyncio
 from server.config.config import load_config
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Callable
 from collections import deque
 from .base_service import SingletonService
 
-# 基础工具定义，用于角色提取
-TOOLS_BASE = [
-    {
-        "type": "function",
-        "function": {
-            "name": "inquire_entities",
-            "description": "用于查询单个或多个实体节点的详细信息",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    },
-                    "names": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "description": "实体的名称"
-                        },
-                        "description": "实体名称列表"
-                    }
-                },
-                "required": ["project_name", "names"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "new_entity",
-            "description": "用于添加新的实体节点",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    },
-                    "name": {
-                        "type": "string",
-                        "description": "实体的名称"
-                    },
-                    "attributes": {
-                        "type": "object",
-                        "description": "实体的属性",
-                        "properties": {
-                            "role": {
-                                "type": "string",
-                                "description": "角色职责"
-                            },
-                            "description": {
-                                "type": "string",
-                                "description": "英文视觉描述"
-                            }
-                        }
-                    }
-                },
-                "required": ["project_name", "name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "modify_entity",
-            "description": "用于修改已存在的实体节点的属性",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    },
-                    "name": {
-                        "type": "string",
-                        "description": "实体的名称"
-                    },
-                    "attributes": {
-                        "type": "object",
-                        "description": "实体的新属性",
-                        "properties": {
-                            "gender":{
-                                "type": "string",
-                                "description": "角色性别"
-                            },
-                            "role": {
-                                "type": "string",
-                                "description": "角色职责"
-                            },
-                            "personality": {
-                                "type": "string",
-                                "description": "角色性格"
-                            },
-                            "description": {
-                                "type": "string",
-                                "description": "英文视觉描述"
-                            }
-                        }
-                    }
-                },
-                "required": ["project_name", "name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "inquire_relationship",
-            "description": "用于查询两个实体之间的关系",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    },
-                    "entity_a": {
-                        "type": "string",
-                        "description": "第一个实体的名称"
-                    },
-                    "entity_b": {
-                        "type": "string",
-                        "description": "第二个实体的名称"
-                    }
-                },
-                "required": ["project_name", "entity_a", "entity_b"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "new_relationship",
-            "description": "用于添加新的关系边",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    },
-                    "type": {
-                        "type": "string",
-                        "description": "关系类型"
-                    },
-                    "source": {
-                        "type": "string",
-                        "description": "源实体名称"
-                    },
-                    "target": {
-                        "type": "string",
-                        "description": "目标实体名称"
-                    },
-                    "attributes": {
-                        "type": "object",
-                        "description": "关系的属性"
-                    }
-                },
-                "required": ["project_name", "type", "source", "target"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "modify_relationship",
-            "description": "用于修改已存在的关系边的属性",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    },
-                    "type": {
-                        "type": "string",
-                        "description": "关系类型"
-                    },
-                    "source": {
-                        "type": "string",
-                        "description": "源实体名称"
-                    },
-                    "target": {
-                        "type": "string",
-                        "description": "目标实体名称"
-                    },
-                    "attributes": {
-                        "type": "object",
-                        "description": "关系的新属性"
-                    }
-                },
-                "required": ["project_name", "type", "source", "target"]
-            }
-        }
-    }
-]
+from langchain_core.tools import tool,StructuredTool
 
-# 完整工具定义，包含所有功能
-TOOLS = [
-    # 查询类工具
-    {
-        "type": "function",
-        "function": {
-            "name": "inquire_entity_list",
-            "description": "用于查询所有实体节点列表",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    }
-                },
-                "required": ["project_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "inquire_entity_names",
-            "description": "用于查询所有实体名称列表",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    }
-                },
-                "required": ["project_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "inquire_entity_relationships",
-            "description": "用于查询实体的所有关系",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    },
-                    "name": {
-                        "type": "string",
-                        "description": "实体名称"
-                    }
-                },
-                "required": ["project_name", "name"]
-            }
-        }
-    },
-    # 修改类工具
-    {
-        "type": "function",
-        "function": {
-            "name": "delete_entity",
-            "description": "用于删除实体节点",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    },
-                    "name": {
-                        "type": "string",
-                        "description": "实体的名称"
-                    }
-                },
-                "required": ["project_name", "name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "delete_relationship",
-            "description": "用于删除关系边",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目ID"
-                    },
-                    "type": {
-                        "type": "string",
-                        "description": "关系类型"
-                    },
-                    "source": {
-                        "type": "string",
-                        "description": "源实体名称"
-                    },
-                    "target": {
-                        "type": "string",
-                        "description": "目标实体名称"
-                    }
-                },
-                "required": ["project_name", "type", "source", "target"]
-            }
-        }
-    }
-] + TOOLS_BASE
-
+logger = logging.getLogger(__name__)
 
 class KGService(SingletonService):
     def _initialize(self):
         self.kg_cache = {}  # 用于缓存已加载的知识图谱
         self.kg_dirty = {}  # 标记缓存是否被修改
         self.config = load_config()
+        
+        # 注册工具
+        self.tools=[]
+        self._register_tools()
+        
+
+    def _register_tools(self):
+    
+        def inquire_entities(project_name: str, names: List[str]) -> str:
+            '''查询实体信息，支持查询单个或多个实体'''
+            try:
+                result = self.inquire_entities(project_name, names)
+                return result
+            except Exception as e:
+                logger.error(f"KGService.mcp_tool.inquire_entities: Error during execution: {str(e)}", exc_info=True)
+                #  Ensure a serializable error response is returned to MCP client
+                return json.dumps({"error": f"Error in inquire_entities: {str(e)}"})
+
+        def new_entity(project_name: str, name: str, attributes: Optional[dict] = None) -> str:
+            '''新增实体'''
+            try:
+                result = self.new_entity(project_name, name, attributes)
+                logger.info(f"KGService.mcp_tool.new_entity: Original method returned: {result}")
+                return result
+            except Exception as e:
+                logger.error(f"KGService.mcp_tool.new_entity: Error during execution: {str(e)}", exc_info=True)
+                return json.dumps({"error": f"Error in new_entity: {str(e)}"})
+
+
+        def modify_entity(project_name: str, name: str, attributes: Optional[dict] = None) -> str:
+            '''修改实体'''
+            return self.modify_entity(project_name, name, attributes)
+
+
+        def delete_entity(project_name: str, name: str) -> str:
+            '''删除实体'''
+            return self.delete_entity(project_name, name)
+
+
+        def inquire_relationship(project_name: str, entity_a: str, entity_b: str) -> str:
+            '''查询两个实体间的关系'''
+            return self.inquire_relationship(project_name, entity_a, entity_b)
+
+        def new_relationship(project_name: str, type: str, source: str, target: str, attributes: Optional[dict] = None) -> str:
+            '''新增关系'''
+            return self.new_relationship(project_name, type, source, target, attributes)
+
+
+        def modify_relationship(project_name: str, type: str, source: str, target: str, attributes: Optional[dict] = None) -> str:
+            '''修改关系'''
+            return self.modify_relationship(project_name, type, source, target, attributes)
+
+
+        def delete_relationship(project_name: str, type: str, source: str, target: str) -> str:
+            '''删除关系'''
+            return self.delete_relationship(project_name, type, source, target)
+
+
+        def inquire_entity_relationships(project_name: str, name: str) -> str:
+            '''查询实体的所有关系'''
+            return self.inquire_entity_relationships(project_name, name)
+
+
+        def inquire_entity_names(project_name: str) -> str:
+            '''获取所有实体名称列表'''
+            logger.info(f"KGService.mcp_tool.inquire_entity_names: Called with project_name='{project_name}'")
+            try:
+                result_list = self.inquire_entity_names(project_name)
+                logger.info(f"KGService.mcp_tool.inquire_entity_names: Original method returned: {result_list}")
+                return json.dumps(result_list)
+            except Exception as e:
+                logger.error(f"KGService.mcp_tool.inquire_entity_names: Error during execution: {str(e)}", exc_info=True)
+                return json.dumps({"error": f"Error in inquire_entity_names: {str(e)}", "names": []})
+
+
+        def inquire_entity_list(project_name: str) -> str:
+            '''获取所有实体列表（包含完整信息）'''
+            return self.inquire_entity_list(project_name)
+
+
+        def get_locked_project_entities(project_name: str) -> str:
+            '''获取项目中被锁定的实体列表'''
+            logger.info(f"KGService.mcp_tool.get_locked_project_entities: Called with project_name='{project_name}'")
+            try:
+                result_list = self.get_locked_entities(project_name)
+                logger.info(f"KGService.mcp_tool.get_locked_project_entities: Original method returned: {result_list}")
+                return json.dumps(result_list) # Return JSON string of the list
+            except Exception as e:
+                logger.error(f"KGService.mcp_tool.get_locked_project_entities: Error during execution: {str(e)}", exc_info=True)
+                # Return a JSON string умира error information
+                return json.dumps({"error": f"Error in get_locked_project_entities: {str(e)}", "locked_entities": []})
+            
+        self.tools=[
+            StructuredTool.from_function(func=inquire_entities),
+            StructuredTool.from_function(func=new_entity),
+            StructuredTool.from_function(func=modify_entity),
+            StructuredTool.from_function(func=delete_entity),
+            StructuredTool.from_function(func=inquire_relationship),
+            StructuredTool.from_function(func=new_relationship),
+            StructuredTool.from_function(func=modify_relationship),
+            StructuredTool.from_function(func=delete_relationship),
+            StructuredTool.from_function(func=inquire_entity_relationships),
+            StructuredTool.from_function(func=inquire_entity_names),
+            StructuredTool.from_function(func=inquire_entity_list),
+            StructuredTool.from_function(func=get_locked_project_entities)
+            ]
 
     def _get_kg_path(self, project_name: str) -> str:
-
         return os.path.join(self.config['projects_path'], project_name, 'kg.json')
 
     def _load_kg(self, project_name: str) -> dict:
@@ -399,19 +200,16 @@ class KGService(SingletonService):
 
     def get_tools(self, include_all: bool = False) -> List[dict]:
         """
-        获取知识图谱工具列表
-
+        获取知识图谱工具列表 - 为了向后兼容保留此方法
+        
         参数:
             include_all (bool): 是否包含所有工具，默认只返回基础工具
-
+            
         返回:
             List[dict]: 工具列表
         """
-        return TOOLS if include_all else TOOLS_BASE
-
-    '''
-    下列工具函数返回的结果是str而不是其他的如bool类型等简单的结果，是为了方便LLM感知function_call结果
-    '''
+        
+        return self.tools
 
     def inquire_entities(self, project_name: str, names: List[str]) -> str:
         """
@@ -441,7 +239,7 @@ class KGService(SingletonService):
         except Exception as e:
             raise Exception(f"查询实体失败: {str(e)}")
 
-    def new_entity(self, project_name: str, name: str, attributes: Optional[dict] = None, save_kg: bool = False) -> str:
+    def new_entity(self, project_name: str, name: str, attributes: Optional[dict] = None, save_kg: bool = True) -> str:
         """
         新增实体
 
@@ -449,7 +247,7 @@ class KGService(SingletonService):
             project_name (str): 项目ID
             name (str): 实体名称
             attributes (Optional[dict]): 实体属性
-            save_kg (bool): 是否保存知识图谱，默认为False
+            save_kg (bool): 是否保存知识图谱，默认为True
 
         返回:
             str: 操作结果
@@ -473,7 +271,7 @@ class KGService(SingletonService):
 
         return "添加成功"
 
-    def modify_entity(self, project_name: str, name: str, attributes: Optional[dict] = None, save_kg: bool = False) -> str:
+    def modify_entity(self, project_name: str, name: str, attributes: Optional[dict] = None, save_kg: bool = True) -> str:
         """
         修改实体
 
@@ -481,7 +279,7 @@ class KGService(SingletonService):
             project_name (str): 项目ID
             name (str): 实体名称
             attributes (Optional[dict]): 实体新属性
-            save_kg (bool): 是否保存知识图谱，默认为False
+            save_kg (bool): 是否保存知识图谱，默认为True
 
         返回:
             str: 操作结果
@@ -498,14 +296,14 @@ class KGService(SingletonService):
 
         return f"实体 {name} 不存在"
 
-    def delete_entity(self, project_name: str, name: str, save_kg: bool = False) -> str:
+    def delete_entity(self, project_name: str, name: str, save_kg: bool = True) -> str:
         """
         删除实体
 
         参数:
             project_name (str): 项目ID
             name (str): 实体名称
-            save_kg (bool): 是否保存知识图谱，默认为False
+            save_kg (bool): 是否保存知识图谱，默认为True
 
         返回:
             str: 操作结果
@@ -569,7 +367,7 @@ class KGService(SingletonService):
         return "关系不存在"
 
     def new_relationship(self, project_name: str, type: str, source: str, target: str,
-                        attributes: Optional[dict] = None, save_kg: bool = False) -> str:
+                        attributes: Optional[dict] = None, save_kg: bool = True) -> str:
         """
         新增关系
 
@@ -579,7 +377,7 @@ class KGService(SingletonService):
             source (str): 源实体名称
             target (str): 目标实体名称
             attributes (Optional[dict]): 关系属性
-            save_kg (bool): 是否保存知识图谱，默认为False
+            save_kg (bool): 是否保存知识图谱，默认为True
 
         返回:
             str: 操作结果
@@ -619,7 +417,7 @@ class KGService(SingletonService):
             return f"新增关系时发生错误: {str(e)}"
 
     def modify_relationship(self, project_name: str, type: str, source: str, target: str,
-                           attributes: Optional[dict] = None, save_kg: bool = False) -> str:
+                          attributes: Optional[dict] = None, save_kg: bool = True) -> str:
         """
         修改关系
 
@@ -629,7 +427,7 @@ class KGService(SingletonService):
             source (str): 源实体名称
             target (str): 目标实体名称
             attributes (Optional[dict]): 关系新属性
-            save_kg (bool): 是否保存知识图谱，默认为False
+            save_kg (bool): 是否保存知识图谱，默认为True
 
         返回:
             str: 操作结果
@@ -648,7 +446,7 @@ class KGService(SingletonService):
 
         return "该关系不存在"
 
-    def delete_relationship(self, project_name: str, type: str, source: str, target: str, save_kg: bool = False) -> str:
+    def delete_relationship(self, project_name: str, type: str, source: str, target: str, save_kg: bool = True) -> str:
         """
         删除关系
 
@@ -657,7 +455,7 @@ class KGService(SingletonService):
             type (str): 关系类型
             source (str): 源实体名称
             target (str): 目标实体名称
-            save_kg (bool): 是否保存知识图谱，默认为False
+            save_kg (bool): 是否保存知识图谱，默认为True
 
         返回:
             str: 操作结果
@@ -840,3 +638,4 @@ class KGService(SingletonService):
 
         except Exception as e:
             raise Exception(f"切换实体锁定状态失败: {str(e)}")
+        

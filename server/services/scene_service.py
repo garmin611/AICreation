@@ -96,14 +96,14 @@ class SceneService(SingletonService):
         scenes = self.load_scenes(project_name)
         return list(scenes.keys())
 
-    def get_scene_descs(self,project_name:str,scene_names:[str])->List[str]:
+    def get_scene_descs(self,project_name: str, scene_names: list[str]) -> List[str]:
         """
         获取项目的多个场景描述。
         """
         scenes = self.load_scenes(project_name)
         return [scenes[scene_name] for scene_name in scene_names]
 
-    def get_scene_dict(self,project_name:str,scene_names:[str])->Dict[str,str]:
+    def get_scene_dict(self,project_name:str,scene_names:list[str])->Dict[str,str]:
         """
         获取项目的场景字典。
         """

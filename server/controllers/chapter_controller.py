@@ -76,9 +76,9 @@ async def generate_chapter(request: Request):
         async def event_stream():
             try:
                 if is_continuation:
-                    generator = llm_service.continue_story(prompt, project_name, last_content)
+                    generator =llm_service.continue_story(prompt, project_name, last_content)
                 else:
-                    generator = llm_service.generate_text(prompt, project_name, last_content)
+                    generator =llm_service.generate_text(prompt, project_name, last_content)
 
                 async for generated_text in generator:
                     if await request.is_disconnected():
