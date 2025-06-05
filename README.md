@@ -26,7 +26,9 @@
 
 ### 演示视频
 
-<video controls src="docs/video.mp4" title="系统演示"></video>
+
+https://github.com/user-attachments/assets/9f0df91a-70b7-4239-8916-96c2f768ee6d
+
 
 ## 安装说明
 
