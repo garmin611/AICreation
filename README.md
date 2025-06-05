@@ -21,7 +21,7 @@
 - 后端：基于 Python FastAPI 框架
 - AI 模型：支持 OpenAI 兼容的 API 接口，使用LangChain调用LLM
 - 图像生成：集成 ComfyUI
-- 音频生成： 使用EdgeTTS进行音频生成
+- 音频生成： 集成EdgeTTS
 - 内容管理：基于文件系统的结构化存储
 
 ### 演示视频
