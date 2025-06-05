@@ -239,7 +239,9 @@ async def get_chapter_scene_list(project_name: str, chapter_name: str):
         return make_response(status='error', msg='Missing project_name or chapter_name')
     
     try:
-        chapter_dir = os.path.join('projects', project_name, chapter_name)
+        config= load_config()
+        projects_path = config.get('projects_path', 'projects/')
+        chapter_dir = os.path.join(projects_path, project_name, chapter_name)
         if not os.path.exists(chapter_dir):
             return make_response(status='error', msg=f'Chapter directory not found: {chapter_dir}')
         

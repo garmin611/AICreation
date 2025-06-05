@@ -77,6 +77,17 @@
                             </template>
                         </el-input>
                     </el-form-item>
+                    <el-form-item :label="t('setting.llm.apiKey')" prop="llm.api_key">
+                        <el-input 
+                            v-model="configForm.llm.api_key" 
+                            :placeholder="t('setting.llm.apiKeyPlaceholder')"
+                            clearable
+                        >
+                            <template #prefix>
+                                <el-icon><Key /></el-icon>
+                            </template>
+                        </el-input>
+                    </el-form-item>
                     <el-form-item :label="t('setting.llm.windowSize')" prop="llm.window_size">
                         <el-input-number 
                             v-model="configForm.llm.window_size" 
@@ -133,7 +144,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { Check, Link, Monitor, Folder } from '@element-plus/icons-vue'
+import { Check, Link, Monitor, Folder,Key } from '@element-plus/icons-vue'
 import projectApi from '@/api/project_api'
 
 const { t } = useI18n()
@@ -149,6 +160,7 @@ const configForm = ref({
     },
     llm: {
         api_url: '',
+        api_key: '',
         model_name: '',
         window_size: 4
     },

@@ -5,7 +5,6 @@ import os
 from fastapi.responses import JSONResponse
 
 
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from fastapi import FastAPI, HTTPException
@@ -30,23 +29,6 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-
-# 全局异常处理器 但是似乎不能很好的使用
-@app.exception_handler(Exception)
-async def handle_error(request, exc):
- 
-    if isinstance(exc, HTTPException):
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"message": exc.detail},
-            media_type="application/json",
-        )
-    
-    return JSONResponse(
-        status_code=200,
-        content=make_response(status='error', msg=str(exc)),
-        media_type="application/json",
-    )
 
 # Register routers
 app.include_router(project_router)

@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import asyncio
-from typing import AsyncGenerator, List, Dict, Optional, Any, Tuple
+from typing import AsyncGenerator, List, Dict
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain.agents import initialize_agent, AgentType
@@ -11,8 +11,6 @@ from langchain.tools import Tool
 from langchain_openai import ChatOpenAI
 from langchain.callbacks import AsyncIteratorCallbackHandler
 
-from fastmcp.client import Client as FastMCPClient
-from langchain_mcp_adapters.tools import load_mcp_tools
 
 from server.services.base_service import SingletonService
 from server.services.kg_service import KGService

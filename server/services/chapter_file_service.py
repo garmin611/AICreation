@@ -62,8 +62,8 @@ class ChapterFileService(SingletonService):
         """
         try:
             # 构建章节目录路径
-            chapter_dir = os.path.join('projects', project_name,  chapter_name)
-            
+            chapter_dir = os.path.join(self.projects_path, project_name,  chapter_name)
+            print(f"章节目录: {chapter_dir}")
             # 如果章节目录不存在，直接返回
             if not os.path.exists(chapter_dir):
                 raise Exception(f"章节目录不存在: {chapter_dir}")
