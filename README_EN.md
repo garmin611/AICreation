@@ -10,7 +10,7 @@
 
 ## Features
 
-This project is an intelligent creative content generation system, which is extended from my own design and can help users:
+This project is an intelligent creative content generation system, which can help users:
 - Quickly generate creative text content
 - Generate images using AI technology
 - Automatically synthesize videos
@@ -21,6 +21,7 @@ System Architecture:
 - Backend: Python FastAPI framework
 - AI Model: OpenAI-compatible API interface, using LangChain for LLM integration
 - Image Generation: Integrated with ComfyUI
+- Audio Generation: Integrated with EdgeTTS
 - Content Management: File system-based structured storage
 
 ### Demo Video
