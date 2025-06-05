@@ -10,7 +10,7 @@
 
 ## Features
 
-This project is an intelligent creative content generation system that helps users:
+This project is an intelligent creative content generation system, which is extended from my own design and can help users:
 - Quickly generate creative text content
 - Generate images using AI technology
 - Automatically synthesize videos
@@ -87,7 +87,7 @@ Key Configuration Items:
 - API Key
 - Model Name
 
-> **Get API Key**:
+> **No Key? Get API Key**:
 > Register through [this link](https://cloud.siliconflow.cn/i/Je8e1K0b) to receive 20 million free tokens
 > After registration, go to: API Keys → Create New API Key
 

@@ -1,4 +1,4 @@
-# AI Creation - 智能创意内容生成系统 | Smart Creative Content Generation System
+# AI Creation - 智能创意内容生成系统
 
 <div align="center">
 
@@ -10,7 +10,7 @@
 
 ## 功能介绍
 
-本项目是一个智能创意内容生成系统，能够帮助用户：
+本项目是一个智能创意内容生成系统，由本人毕设扩展而来，能够帮助用户：
 - 快速生成创意文本内容
 - 利用 AI 技术实现图像生成
 - 自动进行视频合成
@@ -87,7 +87,7 @@ npm run dev
 - API Key
 - 模型名称
 
-> **获取 API Key**：
+> **没有Key？获取 API Key的方法**：
 > 通过 [注册链接](https://cloud.siliconflow.cn/i/Je8e1K0b) 可获得 2000 万免费 token
 > 注册后在主页面选择：API密钥 → 新建API密钥
 
