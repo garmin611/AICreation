@@ -3,7 +3,7 @@ comfyui:
 default_workflow:
   name: nunchaku-flux.1-dev.json
 llm:
-  api_key: sk-jbmoetlepdnlssacqpvunssgsxyduuoihgymxvkfhwohtauc
+  api_key: 
   api_url: https://api.siliconflow.cn/v1
   model_name: deepseek-ai/DeepSeek-V3
   proxies: null
