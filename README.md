@@ -1,4 +1,4 @@
-# <center>AI Creation - 智能创意内容生成系统</center>
+# <p align="center">AI Creation - 智能创意内容生成系统</p>
 
 <div align="center">
 
