@@ -26,7 +26,10 @@ System Architecture:
 
 ### Demo Video
 
-<video controls src="docs/video.mp4" title="System Demo"></video>
+
+
+https://github.com/user-attachments/assets/5dbdd094-0878-4041-8036-3068e022a6f9
+
 
 ## Installation
 
