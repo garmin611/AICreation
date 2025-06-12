@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 import os
 from server.config.config import load_config
 import json
@@ -368,8 +368,8 @@ async def save_scenes(request: Request):
 async def import_novel(
     request: Request,
     file: UploadFile = File(...),
-    project_name: str = None,
-    chapter_pattern: str = None
+    project_name: str = Form(...),
+    chapter_pattern: str = Form(None)
 ):
     """导入小说文件并自动分章节"""
     if not project_name:
