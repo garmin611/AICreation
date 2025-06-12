@@ -1,25 +1,41 @@
 <template>
   <div class="text-creation">
-    <!-- 章节列表栏 -->
-    <div class="chapter-header">
-      <el-select
-        v-model="currentChapter"
-        class="chapter-select"
-        :placeholder="t('chapter.selectPlaceholder')"
-        @change="handleChapterChange"
-        :disabled="isOperating"
-      >
-        <el-option
-          v-for="chapter in chapters"
-          :key="chapter"
-          :label="chapter"
-          :value="chapter"
-        />
-      </el-select>
-      <el-button type="primary" @click="handleAddChapter" :loading="adding" :disabled="isOperating">
-        <el-icon><Plus /></el-icon>
-        {{ t('textCreation.addChapter') }}
+    <el-card class="import-section" v-if="showImport">
+      <template #header>
+        <div class="card-header">
+          <span>导入小说</span>
+          <el-button type="text" @click="showImport = false">关闭</el-button>
+        </div>
+      </template>
+      <NovelImport @import-success="handleImportSuccess" />
+    </el-card>
+
+    <div class="toolbar">
+      <el-button type="primary" @click="showImport = true">
+        <el-icon><Upload /></el-icon>
+        导入小说
       </el-button>
+      <!-- 章节列表栏 -->
+      <div class="chapter-header">
+        <el-select
+          v-model="currentChapter"
+          class="chapter-select"
+          :placeholder="t('chapter.selectPlaceholder')"
+          @change="handleChapterChange"
+          :disabled="isOperating"
+        >
+          <el-option
+            v-for="chapter in chapters"
+            :key="chapter"
+            :label="chapter"
+            :value="chapter"
+          />
+        </el-select>
+        <el-button type="primary" @click="handleAddChapter" :loading="adding" :disabled="isOperating">
+          <el-icon><Plus /></el-icon>
+          {{ t('textCreation.addChapter') }}
+        </el-button>
+      </div>
     </div>
 
     <!-- 设置栏 -->
@@ -96,8 +112,9 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Plus, ScaleToOriginal, Check, User,VideoPause } from '@element-plus/icons-vue'
+import { Plus, ScaleToOriginal, Check, User,VideoPause, Upload } from '@element-plus/icons-vue'
 import { chapterApi } from '@/api/chapter_api'
+import NovelImport from '@/components/NovelImport.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -111,6 +128,7 @@ const content = ref('')  // 当前章节内容
 const isContinueMode = ref(false)  // 是否为续写模式
 const useLastChapter = ref(true)  // 是否使用上一章内容作为上下文
 const hasContentChanged = ref(false)  // 内容是否发生变化
+const showImport = ref(false)
 
 // 加载状态
 const saving = ref(false)  // 保存中
@@ -383,6 +401,12 @@ const handleExtractCharacters = async () => {
   }
 }
 
+const handleImportSuccess = () => {
+  showImport.value = false
+  // 刷新章节列表
+  fetchChapterList()
+}
+
 // 组件挂载时加载章节列表
 onMounted(() => {
   fetchChapterList()
@@ -397,6 +421,22 @@ onMounted(() => {
   padding: 20px;
 }
 
+.toolbar {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.import-section {
+  margin-bottom: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .chapter-header {
   display: flex;
   gap: 10px;
@@ -409,8 +449,6 @@ onMounted(() => {
     width: 120px;
   }
 }
-
-
 
 .settings-bar {
   display: flex;
