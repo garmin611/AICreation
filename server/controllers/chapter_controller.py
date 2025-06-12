@@ -1,10 +1,11 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 import os
 from server.config.config import load_config
 import json
 from datetime import datetime
 from server.utils.response import make_response
+import re
 
 from server.services.llm_service import LLMService
 from server.services.chapter_file_service import ChapterFileService
@@ -362,3 +363,65 @@ async def save_scenes(request: Request):
     except Exception as e:
         logging.error(f'保存场景失败: {str(e)}')
         return make_response(status='error', msg=f'保存失败: {str(e)}')
+
+@router.post('/import_novel')
+async def import_novel(
+    request: Request,
+    file: UploadFile = File(...),
+    project_name: str = None,
+    chapter_pattern: str = None
+):
+    """导入小说文件并自动分章节"""
+    if not project_name:
+        return make_response(status='error', msg='项目名称不能为空')
+    
+    if not chapter_pattern:
+        chapter_pattern = r'第[零一二三四五六七八九十百千万\d]+章.*?\n'  # 默认章节匹配模式
+    
+    try:
+        # 读取上传的文件内容
+        content = await file.read()
+        content = content.decode('utf-8')
+        
+        # 使用正则表达式分割章节
+        chapters = re.split(f'({chapter_pattern})', content)
+        
+        # 过滤空章节
+        chapters = [ch for ch in chapters if ch.strip()]
+        
+        # 确保项目目录存在
+        config = load_config()
+        projects_path = config.get('projects_path', 'projects/')
+        project_path = os.path.join(projects_path, project_name)
+        os.makedirs(project_path, exist_ok=True)
+        
+        # 获取当前最大章节号
+        latest_num = chapter_file_server.get_latest_chapter(project_path)
+        
+        # 保存每个章节
+        chapter_list = []
+        for i, chapter_content in enumerate(chapters[::2], 1):  # 每隔一个元素取一个（因为分割后章节标题和内容分开）
+            chapter_num = latest_num + i
+            chapter_name = f'chapter{chapter_num}'
+            chapter_path = os.path.join(project_path, chapter_name)
+            
+            # 创建章节目录
+            os.makedirs(chapter_path, exist_ok=True)
+            
+            # 保存章节内容
+            content_file = os.path.join(chapter_path, 'content.txt')
+            with open(content_file, 'w', encoding='utf-8') as f:
+                f.write(chapter_content.strip())
+            
+            chapter_list.append(chapter_name)
+        
+        return make_response(
+            data={
+                'chapters': chapter_list,
+                'total_chapters': len(chapter_list)
+            },
+            msg='导入成功'
+        )
+        
+    except Exception as e:
+        return make_response(status='error', msg=f'导入失败：{str(e)}')
