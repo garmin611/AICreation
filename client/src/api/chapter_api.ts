@@ -95,6 +95,15 @@ export const chapterApi = {
       project_name: projectName,
       prompts
     })
+  },
+
+  // 导入小说
+  importNovel(formData: FormData) {
+    return request.post('/chapter/import_novel', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
   }
 }
 

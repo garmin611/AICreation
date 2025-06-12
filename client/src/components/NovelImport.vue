@@ -58,7 +58,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled, QuestionFilled } from '@element-plus/icons-vue'
-import axios from 'axios'
+import { chapterApi } from '@/api/chapter_api'
 
 const loading = ref(false)
 const form = reactive({
@@ -92,18 +92,13 @@ const handleImport = async () => {
       formData.append('chapter_pattern', form.chapterPattern)
     }
     
-    const response = await axios.post('/api/chapter/import_novel', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+    const response = await chapterApi.importNovel(formData)
     
-    if (response.data.status === 'success') {
-      ElMessage.success(`导入成功，共导入 ${response.data.data.total_chapters} 个章节`)
-      // 可以在这里触发父组件的刷新事件
+    if (response.status === 'success') {
+      ElMessage.success(`导入成功，共导入 ${response.data.total_chapters} 个章节`)
       emit('import-success')
     } else {
-      ElMessage.error(response.data.msg || '导入失败')
+      ElMessage.error(response.msg || '导入失败')
     }
   } catch (error: any) {
     ElMessage.error(error.message || '导入失败')
