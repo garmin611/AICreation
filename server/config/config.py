@@ -3,6 +3,7 @@ import yaml
 from typing import Dict, Any
 
 config = {}  # 所有模块共享的全局字典对象
+config_listeners = []  # 配置更新监听器列表
 
 def load_config() -> Dict[str, Any]:
     global config
@@ -52,6 +53,24 @@ def save_config(_config: Dict[str, Any]) -> None:
     # 注意：此处需要重新生成计算属性，故立即调用load_config()
     load_config()
 
+def register_config_listener(listener):
+    """注册配置更新监听器"""
+    if listener not in config_listeners:
+        config_listeners.append(listener)
+
+def unregister_config_listener(listener):
+    """注销配置更新监听器"""
+    if listener in config_listeners:
+        config_listeners.remove(listener)
+
+def notify_config_listeners():
+    """通知所有配置监听器配置已更新"""
+    for listener in config_listeners:
+        try:
+            listener()
+        except Exception as e:
+            print(f"配置监听器执行失败: {str(e)}")
+
 def update_config(updates: Dict[str, Any]) -> Dict[str, Any]:
     global config
     """更新配置并保持全局字典引用不变"""
@@ -72,4 +91,8 @@ def update_config(updates: Dict[str, Any]) -> Dict[str, Any]:
     
     # 保存并重新加载配置
     save_config(filtered_config)
+    
+    # 通知所有配置监听器
+    notify_config_listeners()
+    
     return config

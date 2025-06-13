@@ -1,7 +1,7 @@
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 import os
-from server.config.config import load_config
+from server.config.config import load_config, register_config_listener
 import json
 from datetime import datetime
 from server.utils.response import make_response
@@ -14,7 +14,16 @@ from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix='/chapter')
 llm_service = LLMService()
-chapter_file_server=ChapterFileService()
+chapter_file_server = ChapterFileService()
+
+# 注册配置更新监听器
+def on_config_update():
+    global llm_service, chapter_file_server
+    # 重新初始化服务
+    llm_service = LLMService()
+    chapter_file_server = ChapterFileService()
+
+register_config_listener(on_config_update)
 
 @router.post('/create')
 async def create_chapter(request: Request):
@@ -398,11 +407,26 @@ async def import_novel(
         # 获取当前最大章节号
         latest_num = chapter_file_server.get_latest_chapter(project_path)
         
+        # 如果没有任何章节，创建一个空的第一章
+        if latest_num == 0:
+            first_chapter = 'chapter1'
+            first_chapter_path = os.path.join(project_path, first_chapter)
+            os.makedirs(first_chapter_path, exist_ok=True)
+            content_file = os.path.join(first_chapter_path, 'content.txt')
+            with open(content_file, 'w', encoding='utf-8') as f:
+                f.write('')
+            latest_num = 1
+        
         # 保存每个章节
         chapter_list = []
         for i, chapter_content in enumerate(chapters[::2], 1):  # 每隔一个元素取一个（因为分割后章节标题和内容分开）
-            chapter_num = latest_num + i
-            chapter_name = f'chapter{chapter_num}'
+            # 如果是第一个章节，直接使用chapter1
+            if i == 1:
+                chapter_name = 'chapter1'
+            else:
+                chapter_num = latest_num + i - 1  # 减1是因为第一个章节已经使用了chapter1
+                chapter_name = f'chapter{chapter_num}'
+            
             chapter_path = os.path.join(project_path, chapter_name)
             
             # 创建章节目录

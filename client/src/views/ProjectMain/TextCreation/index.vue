@@ -405,6 +405,11 @@ const handleImportSuccess = () => {
   showImport.value = false
   // 刷新章节列表
   fetchChapterList()
+  // 如果当前没有选中章节，自动选中第一章
+  if (!currentChapter.value && chapters.value.length > 0) {
+    currentChapter.value = chapters.value[0]
+    handleChapterChange(chapters.value[0])
+  }
 }
 
 // 组件挂载时加载章节列表

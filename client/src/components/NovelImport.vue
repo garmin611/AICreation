@@ -95,6 +95,8 @@ const handleImport = async () => {
     
     if (response.status === 'success') {
       ElMessage.success(`导入成功，共导入 ${response.data.total_chapters} 个章节`)
+      form.file = null
+      form.chapterPattern = ''
       emit('import-success')
     } else {
       ElMessage.error(response.msg || '导入失败')
