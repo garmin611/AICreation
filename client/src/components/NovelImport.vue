@@ -8,10 +8,6 @@
       </template>
       
       <el-form :model="form" label-width="120px">
-        <el-form-item label="项目名称">
-          <el-input v-model="form.projectName" placeholder="请输入项目名称"></el-input>
-        </el-form-item>
-        
         <el-form-item label="章节匹配模式">
           <el-input v-model="form.chapterPattern" placeholder="例如：第[零一二三四五六七八九十百千万\\d]+章.*?\\n">
             <template #append>
@@ -55,14 +51,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled, QuestionFilled } from '@element-plus/icons-vue'
 import { chapterApi } from '@/api/chapter_api'
+import { useRoute } from 'vue-router'
 
+const route = useRoute()
 const loading = ref(false)
 const form = reactive({
-  projectName: '',
   chapterPattern: '',
   file: null as File | null
 })
@@ -72,8 +69,10 @@ const handleFileChange = (file: any) => {
 }
 
 const handleImport = async () => {
-  if (!form.projectName) {
-    ElMessage.error('请输入项目名称')
+  const projectName = route.params.name as string
+  
+  if (!projectName) {
+    ElMessage.error('无法获取项目名称')
     return
   }
   
@@ -87,7 +86,7 @@ const handleImport = async () => {
   try {
     const formData = new FormData()
     formData.append('file', form.file)
-    formData.append('project_name', form.projectName)
+    formData.append('project_name', projectName)
     if (form.chapterPattern) {
       formData.append('chapter_pattern', form.chapterPattern)
     }
